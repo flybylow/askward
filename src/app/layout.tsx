@@ -1,28 +1,50 @@
 import type { Metadata } from 'next';
-import { Instrument_Serif } from 'next/font/google';
+import { Instrument_Serif, Inter } from 'next/font/google';
 import { Providers } from '@/components/providers';
 import './globals.css';
 
-const instrumentSerif = Instrument_Serif({
-  variable: '--font-heading',
+const inter = Inter({
+  variable: '--font-sans',
   subsets: ['latin'],
-  weight: '400',
+  weight: ['400', '500'],
+});
+
+const instrumentSerif = Instrument_Serif({
+  variable: '--font-serif',
+  subsets: ['latin'],
+  weight: ['400'],
 });
 
 export const metadata: Metadata = {
-  title: 'Ask Ward',
+  title: 'Ask Ward — AI Agent Designer application for Open',
   description:
-    'Voice conversation with Ward De Muynck — AI Agent Designer application for Open (YC W24).',
+    'A voice-based application for the AI Agent Designer role at Open. Ask Ward about his work in voice AI, knowledge graphs, and 25 years of product design.',
+  metadataBase: new URL('https://ask.tabulas.eu'),
+  openGraph: {
+    title: 'Ask Ward',
+    description:
+      'A voice-based application for the AI Agent Designer role at Open. Ask Ward about his work in voice AI, knowledge graphs, and 25 years of product design.',
+    url: 'https://ask.tabulas.eu',
+    siteName: 'Ask Ward',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Ask Ward',
+    description:
+      'A voice-based application for the AI Agent Designer role at Open. Ask Ward about his work in voice AI, knowledge graphs, and 25 years of product design.',
+  },
 };
 
 export default function RootLayout({
   children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+}: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${instrumentSerif.variable} h-full antialiased`}>
-      <body className="min-h-full font-body">
+    <html
+      lang="en"
+      className={`${inter.variable} ${instrumentSerif.variable} h-full`}
+    >
+      <body className="min-h-full font-sans">
         <Providers>{children}</Providers>
       </body>
     </html>

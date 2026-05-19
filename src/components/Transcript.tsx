@@ -6,45 +6,59 @@ import { cn } from '@/lib/utils';
 export type TranscriptMessage = {
   role: 'user' | 'agent';
   text: string;
+  timestamp: Date;
 };
 
 type TranscriptProps = {
   messages: TranscriptMessage[];
 };
 
+const TRANSCRIPT_HEIGHT = 'min(36vh, 280px)';
+
 export function Transcript({ messages }: TranscriptProps) {
-  const bottomRef = useRef<HTMLLIElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
   }, [messages]);
 
-  if (messages.length === 0) {
-    return (
-      <p className="max-w-md text-center font-body text-sm leading-relaxed text-ink/45">
-        Transcript appears here once you start talking.
-      </p>
-    );
-  }
-
   return (
-    <div className="w-full max-w-lg">
-      <ul className="flex max-h-52 flex-col gap-3 overflow-y-auto pr-1">
-        {messages.map((msg, i) => (
-          <li
-            key={`${msg.role}-${i}`}
-            className={cn(
-              'max-w-[88%] rounded-sm px-4 py-3 font-body text-sm leading-relaxed',
-              msg.role === 'user'
-                ? 'ml-auto border border-ink/10 bg-paper text-ink'
-                : 'mr-auto border border-ink/8 bg-ink/[0.03] text-ink/85'
-            )}
+    <div
+      className="flex w-full max-w-[640px] flex-col overflow-hidden rounded-sm border border-border-divider bg-bg-base"
+      style={{ height: TRANSCRIPT_HEIGHT }}
+    >
+      {messages.length === 0 ? (
+        <p className="flex flex-1 items-center justify-center px-4 text-center text-sm text-text-muted">
+          Transcript appears here once you start talking.
+        </p>
+      ) : (
+        <div
+          ref={scrollRef}
+          className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4"
+        >
+          <ul
+            aria-live="polite"
+            aria-relevant="additions"
+            className="flex flex-col gap-3"
           >
-            {msg.text}
-          </li>
-        ))}
-        <li ref={bottomRef} aria-hidden />
-      </ul>
+            {messages.map((msg, i) => (
+              <li
+                key={`${msg.timestamp.getTime()}-${i}`}
+                className={cn(
+                  'max-w-[88%] rounded-sm px-4 py-3 text-chat text-text-primary',
+                  msg.role === 'user'
+                    ? 'ml-auto border border-border-divider bg-bg-base'
+                    : 'mr-auto border border-border-divider bg-bg-subtle'
+                )}
+              >
+                {msg.text}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }

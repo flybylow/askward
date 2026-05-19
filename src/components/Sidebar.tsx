@@ -1,8 +1,15 @@
 'use client';
 
-import { cn } from '@/lib/utils';
+import { Menu } from 'lucide-react';
 import type { Chapter } from '@/lib/chapters';
 import type { ChapterId } from '@/lib/client-tools';
+import { ChapterNav } from '@/components/ChapterNav';
+import {
+  Sheet,
+  SheetContent,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet';
 
 type SidebarProps = {
   chapters: Chapter[];
@@ -12,56 +19,35 @@ type SidebarProps = {
 
 export function Sidebar({ chapters, active, onSelect }: SidebarProps) {
   return (
-    <nav aria-label="Chapters">
-      <p className="font-body text-[11px] font-medium uppercase tracking-[0.18em] text-ink/45">
-        Chapters
-      </p>
-      <p className="mt-2 max-w-sm font-body text-sm leading-relaxed text-ink/55">
-        Click a topic, or just start talking.
-      </p>
-
-      <ol className="mt-10 flex flex-col">
-        {chapters.map((chapter, index) => {
-          const isActive = active === chapter.id;
-          return (
-            <li key={chapter.id}>
-              <button
-                type="button"
-                onClick={() => onSelect(chapter.id)}
-                className={cn(
-                  'group relative w-full border-t border-ink/8 py-5 text-left transition-colors',
-                  'hover:bg-ink/[0.02]',
-                  isActive && 'bg-ink/[0.02]'
-                )}
-              >
-                {/* Sage accent — the single color, one job */}
-                <span
-                  aria-hidden
-                  className={cn(
-                    'absolute bottom-5 left-0 top-5 w-[3px] rounded-full transition-opacity',
-                    isActive ? 'bg-sage opacity-100' : 'opacity-0'
-                  )}
-                />
-
-                <span className="flex items-baseline gap-4 pl-5">
-                  <span className="font-body text-[11px] tabular-nums tracking-widest text-ink/35">
-                    {String(index + 1).padStart(2, '0')}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block font-heading text-[1.35rem] leading-tight tracking-[-0.01em] text-ink">
-                      {chapter.label}
-                    </span>
-                    <span className="mt-1 block font-body text-sm leading-snug text-ink/50">
-                      {chapter.oneLiner}
-                    </span>
-                  </span>
-                </span>
-              </button>
-            </li>
-          );
-        })}
-        <li aria-hidden className="border-t border-ink/8" />
-      </ol>
-    </nav>
+    <>
+      <div className="absolute left-8 top-8 z-10 lg:hidden">
+        <Sheet>
+          <SheetTrigger className="focus-ring inline-flex items-center gap-2 rounded-md border border-border-divider px-4 py-2 text-sm text-text-primary transition-colors hover:bg-bg-subtle">
+            <Menu className="size-4" strokeWidth={1.5} />
+            Talk to Ward
+          </SheetTrigger>
+          <SheetContent
+            side="left"
+            className="w-full max-w-[280px] border-border-divider bg-bg-base p-8"
+          >
+            <SheetTitle className="sr-only">Talk to Ward</SheetTitle>
+            <ChapterNav
+              chapters={chapters}
+              active={active}
+              onSelect={onSelect}
+              className="max-h-full overflow-y-auto"
+            />
+          </SheetContent>
+        </Sheet>
+      </div>
+      <aside className="hidden w-[280px] shrink-0 px-8 py-6 lg:block">
+        <ChapterNav
+          chapters={chapters}
+          active={active}
+          onSelect={onSelect}
+          className="sticky top-6 max-h-[calc(100vh-3rem)] overflow-y-auto"
+        />
+      </aside>
+    </>
   );
 }

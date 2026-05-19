@@ -12,22 +12,22 @@ export function ReadMode({ chapterId, onExit }: ReadModeProps) {
   const chapter = CHAPTERS.find((c) => c.id === chapterId);
 
   return (
-    <div className="w-full max-w-xl border border-ink/10 bg-paper p-8">
-      <div className="flex items-start justify-between gap-6">
-        <h2 className="font-heading text-3xl tracking-tight text-ink">
-          {chapter?.label ?? 'Chapter'}
-        </h2>
+    <article className="animate-read-mode-in w-full max-w-[640px]">
+      <h2 className="font-serif text-[1.5rem] leading-tight text-text-primary md:text-[2rem]">
+        {chapter?.label ?? 'Chapter'}
+      </h2>
+      <p className="mt-6 max-w-[70ch] text-chat text-text-primary">
+        {chapter?.readModeText}
+      </p>
+      <div className="mt-8 flex justify-end">
         <button
           type="button"
           onClick={onExit}
-          className="shrink-0 font-body text-xs uppercase tracking-[0.14em] text-ink/45 underline-offset-4 hover:text-ink hover:underline"
+          className="focus-ring rounded-md px-4 py-2 text-sm text-text-muted transition-colors hover:bg-bg-subtle hover:text-text-primary"
         >
           Back to voice
         </button>
       </div>
-      <p className="mt-6 font-body text-base leading-relaxed text-ink/70">
-        {chapter?.readModeText}
-      </p>
-    </div>
+    </article>
   );
 }
