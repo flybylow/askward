@@ -1,36 +1,38 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ask-ward
 
-## Getting Started
+Voice application for the [Open](https://open.cx) (YC W24) AI Agent Designer role. Recruiters visit **ask.tabulas.eu**, pick a chapter, and talk to Ward's ElevenLabs agent. The sidebar highlights the active chapter when the agent calls `highlightChapter`.
 
-First, run the development server:
+## Quick start
 
 ```bash
+npm install
+cp .env.example .env.local
+# Add ELEVENLABS_API_KEY and NEXT_PUBLIC_ELEVENLABS_AGENT_ID
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Environment
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Variable | Where | Purpose |
+| --- | --- | --- |
+| `ELEVENLABS_API_KEY` | Server only | Mints WebRTC conversation token |
+| `NEXT_PUBLIC_ELEVENLABS_AGENT_ID` | Client + server | Agent ID from ElevenLabs UI |
 
-## Learn More
+## Ward TODOs (before deploy)
 
-To learn more about Next.js, take a look at the following resources:
+1. **CV** — Add `public/cv-ward.pdf`
+2. **ElevenLabs agent** — System prompt, knowledge base, and client tools from `docs/elevenlabs-*.md`
+3. **Env on Vercel** — Same vars as `.env.local`
+4. **DNS** — `ask.tabulas.eu` → Vercel
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Full checklist: `docs/developer-handoff-v1.md`.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Docs
 
-## Deploy on Vercel
+See [`docs/INDEX.md`](./docs/INDEX.md).
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Repo
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Target: `flybylow/ask-ward` on GitHub.
