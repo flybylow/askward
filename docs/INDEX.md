@@ -3,6 +3,7 @@
 ## Conventions
 
 - [BASE.md](./BASE.md) — doc layout and stack summary
+- [assets/scaffold-nextjs/](./assets/scaffold-nextjs/) — archived create-next-app SVGs (Next/Vercel logos, not in the app)
 
 ## Product & setup
 
@@ -10,6 +11,7 @@
 - [v2-technical-spec.md](./v2-technical-spec.md) — beat sync, side panel, navigation
 - [transcript-beat-sync.md](./transcript-beat-sync.md) — ElevenLabs alignment vs app beat bubbles
 - [sidebar-navigation.md](./sidebar-navigation.md) — authoritative 5-chapter sidebar spec
+- [hero-interface-merge.md](./hero-interface-merge.md) — merged hero + voice layout (Path C)
 - [content-topics.md](./content-topics.md) — legacy 14-topic markdown (superseded by sidebar spec)
 - [elevenlabs-system-prompt-v2.md](./elevenlabs-system-prompt-v2.md) — paste into ElevenLabs agent (v2)
 - [elevenlabs-topics-knowledge-base.md](./elevenlabs-topics-knowledge-base.md) — paste into ElevenLabs knowledge base (v2)

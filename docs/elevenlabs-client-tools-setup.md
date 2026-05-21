@@ -26,9 +26,10 @@ Attach every tool to the **Ward** agent (not only the workspace Tools library).
 
 ### navigate_to_topic
 
-- Parameter: `topicId` (string, required)
+- **Parameter name in ElevenLabs UI must be exactly `topicId`** (camelCase, required, string)
 - Allowed values: `hello`, `why-open`, `about-ward`, `what-ive-built`, `practical`
-- The app maps legacy ids (e.g. `quick-hello`, `methodology`, `voice-blockchain`) to these five chapters for backward compatibility
+- The app also accepts `topic_id`, `chapterId`, chapter labels, and legacy ids — but an **empty** `{}` payload means the tool schema in ElevenLabs is wrong (no parameter defined or wrong key)
+- DevTools: `[ask-ward:nav] tool.navigate.unresolved` with `parameterKeys: []` → fix the tool definition in the ElevenLabs dashboard, re-save the agent, start a **new** conversation
 
 ### set_role
 
@@ -84,5 +85,5 @@ Re-paste from [elevenlabs-system-prompt-v2.md](./elevenlabs-system-prompt-v2.md)
 - [ ] Create and attach all client tools
 - [ ] Set temperature 0.2–0.4, enable guardrails
 - [ ] Set `NEXT_PUBLIC_WHATSAPP_URL` on Vercel
-- [ ] Add `public/ward-portrait.png` (optional; falls back to hero collage)
+- [ ] Replace `public/ward-portrait.png` with your head-and-shoulders crop (placeholder copies `hero-collage.png` until then)
 - [ ] Test interruption mid-beat and click vs voice navigation parity

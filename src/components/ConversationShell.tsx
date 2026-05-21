@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useConversation } from '@elevenlabs/react';
 import {
   getChapter,
-  getSubItemLabel,
   chapterHasSidePanel,
 } from '@/lib/topics';
 import type { ChapterId, SubItemId } from '@/lib/topics';
@@ -20,28 +19,56 @@ import {
 } from '@/lib/beat-sync';
 import {
   buildChapterNavMessage,
+  buildSubItemNavMessage,
   isChapterNavMessage,
 } from '@/lib/chapter-nav';
 import {
   shouldShowTranscriptLine,
   stripToolCallMarkup,
+  isGenericOpeningGreeting,
 } from '@/lib/transcript';
 import { playUiSound } from '@/lib/ui-sounds';
-import { ClientToolsRegistrar } from '@/components/ClientToolsRegistrar';
-import { Hero } from '@/components/Hero';
+import {
+  ClientToolsRegistrar,
+  REGISTERED_TOOLS,
+} from '@/components/ClientToolsRegistrar';
+import { NavDebugHud } from '@/components/NavDebugHud';
+import { debugNav, type NavDebugToolEvent } from '@/lib/debug-nav';
+import { HeroColumn } from '@/components/HeroColumn';
+import { HeroIntro } from '@/components/HeroIntro';
 import { Sidebar } from '@/components/Sidebar';
-import { VoiceOrb } from '@/components/VoiceOrb';
 import { Transcript, type TranscriptMessage } from '@/components/Transcript';
 import { ReadMode } from '@/components/ReadMode';
 import { CVDownload } from '@/components/CVDownload';
 import { SidePanel } from '@/components/SidePanel';
+import { WhatsAppOverlay } from '@/components/WhatsAppOverlay';
+
+/** Related-links panel — disabled while hero/voice layout is tuned. */
+const SIDE_PANEL_ENABLED = false;
 
 function launchChapter(
   id: ChapterId,
   sendUserMessage: (text: string) => void,
   openingAlreadyPlayed: boolean
 ) {
+  debugNav('chapter.launch', { id, openingAlreadyPlayed });
   sendUserMessage(buildChapterNavMessage(id, openingAlreadyPlayed));
+}
+
+function launchSubItem(
+  chapterId: ChapterId,
+  subId: SubItemId,
+  sendUserMessage: (text: string) => void,
+  openingAlreadyPlayed: boolean
+) {
+  debugNav('chapter.launch_sub_item', {
+    chapterId,
+    subId,
+    openingAlreadyPlayed,
+  });
+  sendUserMessage(
+    buildSubItemNavMessage(chapterId, subId, openingAlreadyPlayed)
+  );
 }
 
 const ROLE_LABELS: Record<ListenerRole, string> = {
@@ -61,10 +88,20 @@ export function ConversationShell() {
   const [forceSidePanel, setForceSidePanel] = useState(false);
   const [messages, setMessages] = useState<TranscriptMessage[]>([]);
   const [sessionError, setSessionError] = useState<string>();
+  const [navOpen, setNavOpen] = useState(false);
+  /** True from start click until call ends — keeps nav available before status flips. */
+  const [navSessionActive, setNavSessionActive] = useState(false);
+  const [whatsAppOpen, setWhatsAppOpen] = useState(false);
+  const [lastToolDebug, setLastToolDebug] = useState<NavDebugToolEvent | null>(
+    null
+  );
 
   const pendingChapterRef = useRef<ChapterId | null>(null);
+  const pendingSubItemRef = useRef<SubItemId | null>(null);
   const startingRef = useRef(false);
   const greetingPlayedRef = useRef(false);
+  /** After first nav or first agent speech — no more "Hey I'm Ward" on later clicks. */
+  const sessionIntroConsumedRef = useRef(false);
   /** Sidebar connect: ElevenLabs first message suppressed for this session. */
   const skipAgentFirstMessageRef = useRef(false);
   const sendUserMessageRef = useRef<(text: string) => void>(() => {});
@@ -80,6 +117,44 @@ export function ConversationShell() {
 
   if (activeChapter) activeChapterRef.current = activeChapter;
 
+  const openingAlreadyPlayedForNav = useCallback((): boolean => {
+    return sessionIntroConsumedRef.current || greetingPlayedRef.current;
+  }, []);
+
+  const markSessionIntroConsumed = useCallback(() => {
+    sessionIntroConsumedRef.current = true;
+  }, []);
+
+  const sendChapterNav = useCallback(
+    (id: ChapterId, sendUserMessage: (text: string) => void) => {
+      launchChapter(id, sendUserMessage, openingAlreadyPlayedForNav());
+      markSessionIntroConsumed();
+    },
+    [markSessionIntroConsumed, openingAlreadyPlayedForNav]
+  );
+
+  const sendSubItemNav = useCallback(
+    (
+      chapterId: ChapterId,
+      subId: SubItemId,
+      sendUserMessage: (text: string) => void
+    ) => {
+      launchSubItem(
+        chapterId,
+        subId,
+        sendUserMessage,
+        openingAlreadyPlayedForNav()
+      );
+      markSessionIntroConsumed();
+    },
+    [markSessionIntroConsumed, openingAlreadyPlayedForNav]
+  );
+
+  const sendChapterNavRef = useRef(sendChapterNav);
+  const sendSubItemNavRef = useRef(sendSubItemNav);
+  sendChapterNavRef.current = sendChapterNav;
+  sendSubItemNavRef.current = sendSubItemNav;
+
   const markVisited = useCallback((id: ChapterId) => {
     setVisited((prev) => {
       if (prev.has(id)) return prev;
@@ -91,27 +166,68 @@ export function ConversationShell() {
 
   const selectChapter = useCallback(
     (id: ChapterId, source: 'ui' | 'tool') => {
+      const status = conversationStatusRef.current;
+      debugNav('chapter.select', {
+        id,
+        source,
+        conversationStatus: status,
+        previousChapter: activeChapterRef.current,
+      });
+
       setActiveChapter(id);
       setActiveSubItem(null);
+      pendingSubItemRef.current = null;
       setSidePanelDismissed(false);
       const chapter = getChapter(id);
-      if (chapter && chapterHasSidePanel(chapter)) {
+      if (SIDE_PANEL_ENABLED && chapter && chapterHasSidePanel(chapter)) {
         playUiSound('panelOpen');
       }
       if (source === 'ui') playUiSound('chapterClick');
 
       if (source === 'ui') {
-        const connected =
-          conversationStatusRef.current === 'connected';
+        const connected = status === 'connected';
         if (connected) {
-          launchChapter(
-            id,
-            sendUserMessageRef.current,
-            greetingPlayedRef.current || skipAgentFirstMessageRef.current
-          );
+          sendChapterNavRef.current(id, sendUserMessageRef.current);
         } else {
           pendingChapterRef.current = id;
-          if (conversationStatusRef.current === 'disconnected') {
+          debugNav('chapter.select.pending_connect', { id });
+          if (status === 'disconnected') {
+            void startCallRef.current();
+          }
+        }
+      } else {
+        debugNav('chapter.select.tool_only', {
+          id,
+          note: 'UI highlight only; no launchChapter for tool source',
+        });
+      }
+    },
+    []
+  );
+
+  const selectSubItem = useCallback(
+    (subId: SubItemId, source: 'ui' | 'tool') => {
+      const chapterId: ChapterId = 'what-ive-built';
+      const status = conversationStatusRef.current;
+      debugNav('chapter.select_sub_item', {
+        subId,
+        source,
+        conversationStatus: status,
+      });
+
+      setActiveChapter(chapterId);
+      setActiveSubItem(subId);
+      setSidePanelDismissed(false);
+      if (source === 'ui') playUiSound('chapterClick');
+
+      if (source === 'ui') {
+        if (status === 'connected') {
+          sendSubItemNavRef.current(chapterId, subId, sendUserMessageRef.current);
+        } else {
+          pendingChapterRef.current = chapterId;
+          pendingSubItemRef.current = subId;
+          debugNav('chapter.select_sub_item.pending_connect', { subId });
+          if (status === 'disconnected') {
             void startCallRef.current();
           }
         }
@@ -122,25 +238,17 @@ export function ConversationShell() {
 
   const handleSubItemClick = useCallback(
     (subId: SubItemId) => {
-      if (activeChapter !== 'what-ive-built') {
-        selectChapter('what-ive-built', 'ui');
-      }
-      setActiveSubItem(subId);
-      const label = getSubItemLabel('what-ive-built', subId);
-      if (
-        conversationStatusRef.current === 'connected' &&
-        label
-      ) {
-        sendContextualUpdateRef.current(
-          `The listener jumped to the "${label}" section within What I've built. Do not restart the chapter; continue from that section if appropriate.`
-        );
-      }
+      selectSubItem(subId, 'ui');
     },
-    [activeChapter, selectChapter]
+    [selectSubItem]
   );
 
   const conversationStatusRef = useRef<
-    'disconnected' | 'connecting' | 'connected' | 'error'
+    | 'disconnected'
+    | 'connecting'
+    | 'connected'
+    | 'disconnecting'
+    | 'error'
   >('disconnected');
   const startCallRef = useRef<() => Promise<void>>(async () => {});
 
@@ -238,6 +346,8 @@ export function ConversationShell() {
 
       if (beats.length === 0) return;
 
+      setMessages((prev) => prev.filter((m) => m.role === 'user'));
+
       if (beats.length === 1) {
         setMessages((prev) => {
           const users = prev.filter((m) => m.role === 'user');
@@ -305,25 +415,81 @@ export function ConversationShell() {
     [clearBeatFallbackTimer, scheduleRemainingBeats]
   );
 
+  useEffect(() => {
+    debugNav('chapter.active', {
+      activeChapter,
+      activeSubItem,
+    });
+  }, [activeChapter, activeSubItem]);
+
   const conversation = useConversation({
     onConnect: () => {
       startingRef.current = false;
+      debugNav('conversation.connect', {
+        registeredTools: REGISTERED_TOOLS,
+        pendingChapter: pendingChapterRef.current,
+        pendingSubItem: pendingSubItemRef.current,
+      });
       const chapterId = pendingChapterRef.current;
+      const subItemId = pendingSubItemRef.current;
       pendingChapterRef.current = null;
+      pendingSubItemRef.current = null;
       if (chapterId) {
-        launchChapter(
-          chapterId,
-          sendUserMessageRef.current,
-          greetingPlayedRef.current || skipAgentFirstMessageRef.current
-        );
+        window.setTimeout(() => {
+          if (conversationStatusRef.current !== 'connected') return;
+          if (subItemId) {
+            sendSubItemNavRef.current(
+              chapterId,
+              subItemId,
+              sendUserMessageRef.current
+            );
+          } else {
+            sendChapterNavRef.current(chapterId, sendUserMessageRef.current);
+          }
+        }, 100);
       }
     },
     onDisconnect: () => {
       startingRef.current = false;
       greetingPlayedRef.current = false;
+      sessionIntroConsumedRef.current = false;
       skipAgentFirstMessageRef.current = false;
+      pendingAgentTextRef.current = '';
       clearBeatFallbackTimer();
       beatSchedulerRef.current.cancel();
+      setMessages([]);
+      setSessionError(undefined);
+      setNavSessionActive(false);
+      debugNav('conversation.disconnect');
+    },
+    onStatusChange: ({ status }) => {
+      conversationStatusRef.current = status;
+      debugNav('conversation.status', { status });
+    },
+    onAgentToolRequest: (request) => {
+      debugNav('tool.agent_request', request);
+      setLastToolDebug({
+        name: request.tool_name,
+        phase: 'requested',
+        at: Date.now(),
+      });
+    },
+    onAgentToolResponse: (response) => {
+      debugNav('tool.agent_response', response);
+      setLastToolDebug((prev) =>
+        prev?.name === response.tool_name
+          ? {
+              ...prev,
+              phase: response.is_error ? 'error' : 'done',
+              at: Date.now(),
+              error: response.is_error ? 'agent_tool_error' : undefined,
+            }
+          : {
+              name: response.tool_name,
+              phase: response.is_error ? 'error' : 'done',
+              at: Date.now(),
+            }
+      );
     },
     onMessage: ({ message, role, source }) => {
       const speaker = role ?? (source === 'user' ? 'user' : 'agent');
@@ -333,13 +499,38 @@ export function ConversationShell() {
       if (speaker === 'user') {
         clearBeatFallbackTimer();
         beatSchedulerRef.current.cancel();
-        if (isChapterNavMessage(text)) return;
-        setMessages([{ role: 'user', text, timestamp: new Date() }]);
+        if (isChapterNavMessage(text)) {
+          debugNav('chapter.nav_message', { preview: text.slice(0, 120) });
+          return;
+        }
+        setMessages((prev) => [
+          ...prev.filter((m) => m.role !== 'user'),
+          { role: 'user', text, timestamp: new Date() },
+        ]);
         return;
       }
 
       if (speaker === 'agent') {
+        const skipOpening =
+          skipAgentFirstMessageRef.current ||
+          (greetingPlayedRef.current && isGenericOpeningGreeting(text));
+
+        if (skipOpening && isGenericOpeningGreeting(text)) {
+          skipAgentFirstMessageRef.current = false;
+          greetingPlayedRef.current = true;
+          sessionIntroConsumedRef.current = true;
+          debugNav('conversation.skip_opening_script', {
+            preview: text.slice(0, 100),
+          });
+          return;
+        }
+
+        if (skipAgentFirstMessageRef.current) {
+          skipAgentFirstMessageRef.current = false;
+        }
+
         greetingPlayedRef.current = true;
+        sessionIntroConsumedRef.current = true;
         startAgentTurn(text);
       }
     },
@@ -379,18 +570,40 @@ export function ConversationShell() {
       });
     },
     onUnhandledClientToolCall: (call) => {
+      debugNav('tool.unhandled', {
+        tool_name: call.tool_name,
+        tool_call_id: call.tool_call_id,
+        parameters: call.parameters,
+        registeredTools: REGISTERED_TOOLS,
+      });
+      setLastToolDebug({
+        name: call.tool_name,
+        phase: 'unhandled',
+        at: Date.now(),
+        parameters: call.parameters,
+      });
       console.warn('[ask-ward] Unhandled client tool:', call.tool_name, call);
     },
     onError: (err) => {
+      debugNav('conversation.error', { err });
       console.error('Conversation error', err);
       startingRef.current = false;
       setSessionError(typeof err === 'string' ? err : 'Connection error');
+    },
+    onDebug: (info) => {
+      debugNav('conversation.debug', info);
     },
   });
 
   conversationStatusRef.current = conversation.status;
   sendUserMessageRef.current = conversation.sendUserMessage;
   sendContextualUpdateRef.current = conversation.sendContextualUpdate;
+
+  useEffect(() => {
+    if (navSessionActive) {
+      setNavOpen(true);
+    }
+  }, [navSessionActive]);
 
   const conversationRef = useRef(conversation);
   conversationRef.current = conversation;
@@ -419,12 +632,17 @@ export function ConversationShell() {
 
     startingRef.current = true;
     setSessionError(undefined);
+    setNavSessionActive(true);
+    setNavOpen(true);
+    debugNav('conversation.startCall');
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       stream.getTracks().forEach((track) => track.stop());
     } catch {
       startingRef.current = false;
+      setNavSessionActive(false);
+      setNavOpen(false);
       setSessionError('Microphone access is required for voice mode.');
       setReadMode(true);
       return;
@@ -448,28 +666,35 @@ export function ConversationShell() {
       }
 
       const pendingChapter = pendingChapterRef.current;
-      if (pendingChapter) {
+      const pendingSubItem = pendingSubItemRef.current;
+      const skipOpening = Boolean(pendingChapter);
+
+      if (skipOpening) {
         skipAgentFirstMessageRef.current = true;
+      }
+
+      const dynamicVariables: Record<string, string | boolean> = {};
+      if (pendingChapter) {
+        dynamicVariables.initial_chapter = pendingChapter;
+        dynamicVariables.chapter_first_connect = true;
+      }
+      if (pendingSubItem) {
+        dynamicVariables.initial_sub_item = pendingSubItem;
       }
 
       conversation.startSession({
         conversationToken: body.conversationToken,
         connectionType: 'webrtc',
-        ...(pendingChapter
-          ? {
-              overrides: {
-                agent: { firstMessage: ' ' },
-              },
-              dynamicVariables: {
-                initial_chapter: pendingChapter,
-                chapter_first_connect: true,
-              },
-            }
+        ...(skipOpening
+          ? { overrides: { agent: { firstMessage: '' } } }
           : {}),
+        ...(Object.keys(dynamicVariables).length > 0 ? { dynamicVariables } : {}),
       });
     } catch (err) {
       startingRef.current = false;
       pendingChapterRef.current = null;
+      setNavSessionActive(false);
+      setNavOpen(false);
       setSessionError(err instanceof Error ? err.message : String(err));
     }
   }, [conversation]);
@@ -479,71 +704,99 @@ export function ConversationShell() {
   const endCall = useCallback(() => {
     startingRef.current = false;
     pendingChapterRef.current = null;
+    pendingSubItemRef.current = null;
+    pendingAgentTextRef.current = '';
     greetingPlayedRef.current = false;
+    sessionIntroConsumedRef.current = false;
     skipAgentFirstMessageRef.current = false;
+    currentAgentTurnIdRef.current = 0;
+    alignmentScheduleKeyRef.current = null;
+    alignmentUsedRef.current = false;
+    clearBeatFallbackTimer();
     beatSchedulerRef.current.cancel();
+    setMessages([]);
+    setSessionError(undefined);
+    setNavSessionActive(false);
+    setNavOpen(false);
     conversation.endSession();
-  }, [conversation]);
+  }, [clearBeatFallbackTimer, conversation]);
 
   const handleStartFromOrb = useCallback(() => {
     pendingChapterRef.current = null;
+    pendingSubItemRef.current = null;
     skipAgentFirstMessageRef.current = false;
     void startCall();
   }, [startCall]);
 
   const connectToWard = useCallback(() => {
-    setForceSidePanel(true);
-    setSidePanelDismissed(false);
-    const url = process.env.NEXT_PUBLIC_WHATSAPP_URL;
-    if (url) {
-      window.open(url, '_blank', 'noopener,noreferrer');
+    if (SIDE_PANEL_ENABLED) {
+      setForceSidePanel(true);
+      setSidePanelDismissed(false);
     }
+    playUiSound('panelOpen');
+    setWhatsAppOpen(true);
   }, []);
 
   const activeChapterData = activeChapter
     ? getChapter(activeChapter)
     : undefined;
   const showSidePanel =
-    (activeChapterData &&
+    SIDE_PANEL_ENABLED &&
+    ((activeChapterData &&
       chapterHasSidePanel(activeChapterData) &&
       !sidePanelDismissed) ||
-    forceSidePanel;
+      forceSidePanel);
 
   const displayError = sessionError ?? conversation.message;
   const roleLabel = listenerRole ? ROLE_LABELS[listenerRole] : null;
+  const voiceActive = conversation.status !== 'disconnected';
 
   return (
     <div className="bg-bg-base text-text-primary">
       <ClientToolsRegistrar
         selectChapter={selectChapter}
+        selectSubItem={selectSubItem}
         setCvVisible={setCvVisible}
         setReadMode={setReadMode}
         setRole={setListenerRole}
+        onToolDebug={setLastToolDebug}
         openSidePanel={() => {
+          if (!SIDE_PANEL_ENABLED) return;
           setSidePanelDismissed(false);
           setForceSidePanel(false);
           playUiSound('panelOpen');
         }}
         connectToWard={connectToWard}
       />
-      <Hero
-        onTalkToMe={handleStartFromOrb}
-        isConnecting={conversation.status === 'connecting'}
-        roleLabel={roleLabel}
+      <NavDebugHud
+        conversationStatus={conversation.status}
+        activeChapter={activeChapter}
+        activeSubItem={activeSubItem}
+        lastTool={lastToolDebug}
+        registeredTools={[...REGISTERED_TOOLS]}
+      />
+      <WhatsAppOverlay
+        open={whatsAppOpen}
+        onClose={() => {
+          playUiSound('panelClose');
+          setWhatsAppOpen(false);
+        }}
       />
       <section
         id="voice-conversation"
         aria-label="Voice conversation"
-        className="relative z-0 flex h-screen min-h-0"
+        className="relative flex h-screen min-h-0 overflow-hidden"
       >
         <Sidebar
+          open={navOpen}
+          onOpenChange={setNavOpen}
           activeChapter={activeChapter}
           activeSubItem={activeSubItem}
           visited={visited}
           onSelectChapter={(id) => selectChapter(id, 'ui')}
           onSelectSubItem={handleSubItemClick}
         />
-        <main className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+        <main className="relative flex h-full min-h-0 flex-1 flex-col overflow-x-clip overflow-y-hidden">
           <div className="absolute right-8 top-8 z-10 flex items-center gap-3">
             <CVDownload visible={cvVisible} />
           </div>
@@ -555,23 +808,29 @@ export function ConversationShell() {
               />
             </div>
           ) : (
-            <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-              <div className="flex min-h-0 flex-1 flex-col">
-                <div className="flex min-h-0 flex-1 items-center justify-center px-6 pt-16 lg:px-12">
-                  <VoiceOrb
+            <div className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+              <HeroColumn
+                active={voiceActive}
+                status={conversation.status}
+                isSpeaking={conversation.isSpeaking}
+                onStart={handleStartFromOrb}
+                onEnd={endCall}
+                errorMessage={displayError}
+              />
+              <div className="pointer-events-none relative z-10 flex min-h-0 flex-1 flex-col justify-start px-4 pb-4 pt-3 max-lg:w-full md:pl-[8%] md:px-6 md:pb-6 md:pt-4 lg:pl-[10%] lg:pr-12 lg:pt-6">
+                <div className="main-content-column pointer-events-auto flex min-h-0 flex-1 flex-col gap-3 lg:gap-4">
+                  <HeroIntro
+                    navOpen={navOpen}
+                    onToggleNav={() => setNavOpen((open) => !open)}
+                    onTalkToMe={handleStartFromOrb}
+                    isConnecting={conversation.status === 'connecting'}
                     status={conversation.status}
                     isSpeaking={conversation.isSpeaking}
-                    showPortrait={
-                      conversation.status === 'connected' &&
-                      !conversation.isSpeaking
-                    }
-                    onStart={handleStartFromOrb}
                     onEnd={endCall}
                     errorMessage={displayError}
+                    roleLabel={roleLabel}
                   />
-                </div>
-                <div className="flex shrink-0 justify-center px-6 pb-8 pt-2 lg:px-12">
-                  <Transcript messages={messages} />
+                  <Transcript messages={messages} variant="main" />
                 </div>
               </div>
               {showSidePanel && (

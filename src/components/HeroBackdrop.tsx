@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 const COLLAGE_WIDTH = 571;
 const COLLAGE_HEIGHT = 1024;
 
-/** Wax seal overlay — edit placement here; text + collage are unchanged. */
+/** Wax seal overlay — edit placement here. */
 const HERO_SEAL = {
   src: '/hero-seal.png',
   width: 669,
@@ -32,12 +32,10 @@ type SealPlacement = {
   bottom?: string;
 };
 
-type HeroProps = {
-  onTalkToMe?: () => void;
-  isConnecting?: boolean;
-  roleLabel?: string | null;
-  /** Voice overlay is active — fade intro copy, keep image layers for animation. */
-  voiceActive?: boolean;
+type HeroBackdropProps = {
+  className?: string;
+  /** Slight scale when conversation is active. */
+  active?: boolean;
 };
 
 function sealStyle(placement: SealPlacement): CSSProperties {
@@ -57,28 +55,19 @@ function sealStyle(placement: SealPlacement): CSSProperties {
   return style;
 }
 
-export function Hero({
-  onTalkToMe,
-  isConnecting = false,
-  roleLabel = null,
-  voiceActive = false,
-}: HeroProps) {
-  const handleCtaClick = () => {
-    onTalkToMe?.();
-  };
-
+/** Original hero portrait + wax seal — persistent background behind the voice collage. */
+export function HeroBackdrop({ className, active = false }: HeroBackdropProps) {
   return (
     <div
-      aria-label="Introduction"
-      className="absolute inset-0 z-0 overflow-visible bg-bg-base"
+      aria-hidden
+      className={cn('pointer-events-none overflow-visible', className)}
     >
-      {/* Clips collage at hero bounds; seal sits outside this layer */}
-      <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+      <div className="absolute inset-0 overflow-hidden">
         <div
           data-layer="collage"
           className={cn(
             'hero-layer-collage absolute bottom-0 right-0 hidden aspect-[571/1024] transition-transform duration-700 ease-out md:block',
-            voiceActive && 'scale-[1.02]'
+            active && 'scale-[1.02]'
           )}
           style={{
             height: '110%',
@@ -100,7 +89,7 @@ export function Hero({
           data-layer="collage"
           className={cn(
             'hero-layer-collage absolute bottom-0 right-0 aspect-[571/1024] transition-transform duration-700 ease-out md:hidden',
-            voiceActive && 'scale-[1.02]'
+            active && 'scale-[1.02]'
           )}
           style={{
             height: '52%',
@@ -119,13 +108,11 @@ export function Hero({
         </div>
       </div>
 
-      {/* Decorative seal — own layer; reposition via HERO_SEAL above */}
       <div
-        aria-hidden
         data-layer="seal"
         className={cn(
-          'hero-layer-seal pointer-events-none absolute z-20 hidden transition-transform duration-700 ease-out md:block',
-          voiceActive && '-translate-y-1 scale-105'
+          'hero-layer-seal absolute z-20 hidden transition-transform duration-700 ease-out md:block',
+          active && '-translate-y-1 scale-105'
         )}
         style={sealStyle(HERO_SEAL.desktop)}
       >
@@ -140,11 +127,10 @@ export function Hero({
       </div>
 
       <div
-        aria-hidden
         data-layer="seal"
         className={cn(
-          'hero-layer-seal pointer-events-none absolute z-20 transition-transform duration-700 ease-out md:hidden',
-          voiceActive && '-translate-y-1 scale-105'
+          'hero-layer-seal absolute z-20 transition-transform duration-700 ease-out md:hidden',
+          active && '-translate-y-1 scale-105'
         )}
         style={sealStyle(HERO_SEAL.mobile)}
       >
@@ -156,42 +142,6 @@ export function Hero({
           className="size-full h-auto w-full object-contain drop-shadow-[0_6px_18px_rgba(10,10,10,0.1)]"
           sizes="158px"
         />
-      </div>
-
-      <div
-        className={cn(
-          'relative z-10 flex h-full max-w-[58%] flex-col justify-center px-6 transition-opacity duration-500 ease-out md:pl-[10%] md:pr-6 lg:pl-[12%] lg:max-w-[54%]',
-          voiceActive && 'pointer-events-none opacity-0'
-        )}
-      >
-        <div className="mb-8 flex flex-wrap items-center gap-2">
-          <span className="inline-flex w-fit rounded-full bg-border-divider px-3 py-1.5 text-[13px] text-text-primary">
-            Ward · AI Agent Designer
-          </span>
-          {roleLabel && (
-            <span className="inline-flex w-fit rounded-full border border-border-divider px-3 py-1.5 text-[13px] text-text-muted">
-              Speaking with: {roleLabel}
-            </span>
-          )}
-        </div>
-
-        <h1 className="text-hero-headline text-text-primary">
-          <span className="block">Designing agents</span>
-          <span className="block md:whitespace-nowrap">that work out of the box.</span>
-        </h1>
-
-        <p className="mt-6 text-hero-subhead text-text-muted md:whitespace-nowrap">
-          Twenty years between customers and products.
-        </p>
-
-        <button
-          type="button"
-          onClick={handleCtaClick}
-          disabled={isConnecting}
-          className="focus-ring mt-8 inline-flex w-fit items-center justify-center rounded-md bg-accent-orange px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-accent-orange-hover disabled:cursor-wait disabled:opacity-70"
-        >
-          {isConnecting ? 'Connecting…' : 'Talk to me'}
-        </button>
       </div>
     </div>
   );

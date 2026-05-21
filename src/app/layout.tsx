@@ -34,6 +34,10 @@ export const metadata: Metadata = {
     description:
       'A voice-based application for the AI Agent Designer role at Open. Ask Ward about his work in voice AI, knowledge graphs, and 25 years of product design.',
   },
+  icons: {
+    icon: '/hero-seal.png',
+    apple: '/hero-seal.png',
+  },
 };
 
 export default function RootLayout({

@@ -71,6 +71,14 @@
   --accent-orange: #ff5520;
   --accent-orange-hover: #e64d1c;
   --danger: #8c4646;
+  /* Hero layout — tune in browser without code changes */
+  /* Art shift moves harp down inside overflow clip; frame stays flush to viewport top. */
+  --hero-art-shift: clamp(1rem, 2.5dvh, 2.5rem);
+  --sage-orb-top: 52%;
+  --sage-orb-size: 83%;
+  --sage-orb-inner: 68%;
+  /* Positive = nudge orb down from center anchor (offsets -50% translate). */
+  --sage-orb-shift-y: 8%;
   --background: var(--bg-base);
   --foreground: var(--text-primary);
   --card: var(--bg-base);
@@ -161,3 +169,79 @@
   to { opacity: 1; }
 }
 .animate-read-mode-in { animation: read-mode-fade-in 240ms cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+
+@keyframes collage-halftone-breathe {
+  0%, 100% { opacity: 0.8; }
+  50% { opacity: 1; }
+}
+.collage-halftone-breathe {
+  animation: collage-halftone-breathe 4000ms ease-in-out infinite;
+}
+
+@layer components {
+  /* Hero portrait — mobile: small top-right strip; desktop: full viewport bleed. */
+  .hero-collage-frame {
+    position: fixed;
+    top: 0;
+    right: 0;
+    z-index: 0;
+    overflow: hidden;
+    pointer-events: none;
+    height: min(40dvh, 17.5rem);
+    width: min(34vw, 8.75rem);
+  }
+
+  @media (min-width: 1024px) {
+    .hero-collage-frame {
+      height: 100dvh;
+      width: calc(100dvh * 571 / 1024);
+      max-width: none;
+    }
+  }
+
+  .hero-collage-art {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 100%;
+    height: calc(100% + var(--hero-art-shift));
+    transform: translateY(calc(-1 * var(--hero-art-shift)));
+    transform-origin: top right;
+    transition: transform 700ms ease-out;
+  }
+
+  .hero-collage-art img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: right top;
+  }
+
+  .hero-collage-frame[data-active='true'] .hero-collage-art {
+    transform: translateY(calc(-1 * var(--hero-art-shift))) scale(1.02);
+  }
+
+  /* Sage circle orb — center anchor + positive shift-y to sit lower on disc. */
+  .sage-orb-anchor {
+    position: absolute;
+    left: 50%;
+    top: var(--sage-orb-top);
+    width: var(--sage-orb-size);
+    aspect-ratio: 1;
+    pointer-events: auto;
+    transform: translate(-50%, calc(-50% + var(--sage-orb-shift-y)));
+  }
+
+  /* Left copy column — matches original Hero horizontal rhythm. */
+  .main-content-column {
+    width: min(60%, 540px);
+    max-width: 100%;
+  }
+
+  @media (max-width: 1023px) {
+    .main-content-column {
+      width: 100%;
+    }
+  }
+}

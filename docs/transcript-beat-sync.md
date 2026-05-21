@@ -28,3 +28,7 @@ The system prompt asks Ward to use blank lines between short paragraphs so beats
 ## ElevenLabs dashboard
 
 No extra client event flags are required for alignment on WebRTC. Optional: enable `agent_response_complete` only if `turn_timeout` is disabled (not used in ask-ward today).
+
+## LiveKit console noise
+
+`Unknown DataChannel error on lossy {}` comes from LiveKit inside ElevenLabs WebRTC (often on end call or dev hot reload). It is not a Next.js bug. `src/lib/suppress-livekit-console-noise.ts` filters that message at app startup.

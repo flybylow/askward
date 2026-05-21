@@ -13,6 +13,13 @@ export type SubItemId =
   | 'momuse'
   | 'this-agent';
 
+export const SUB_ITEM_IDS: SubItemId[] = [
+  'voice-blockchain',
+  'talk-to-product',
+  'momuse',
+  'this-agent',
+];
+
 export type SidePanelChoice = {
   label: string;
   tool: string;
@@ -242,8 +249,82 @@ export const LEGACY_TOPIC_TO_CHAPTER: Record<string, ChapterId> = {
 
 export function resolveChapterId(value: unknown): ChapterId | null {
   if (typeof value !== 'string') return null;
-  if (CHAPTER_IDS.includes(value as ChapterId)) return value as ChapterId;
-  return LEGACY_TOPIC_TO_CHAPTER[value] ?? null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (CHAPTER_IDS.includes(trimmed as ChapterId)) return trimmed as ChapterId;
+  return LEGACY_TOPIC_TO_CHAPTER[trimmed] ?? null;
+}
+
+const CHAPTER_LABEL_TO_ID: Record<string, ChapterId> = Object.fromEntries(
+  NAV_CHAPTERS.flatMap((chapter) => [
+    [chapter.label.toLowerCase(), chapter.id],
+    [chapter.id, chapter.id],
+  ])
+) as Record<string, ChapterId>;
+
+function normalizeChapterToken(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/['']/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9-]/g, '');
+}
+
+function resolveChapterToken(value: unknown): ChapterId | null {
+  const direct = resolveChapterId(value);
+  if (direct) return direct;
+
+  if (typeof value !== 'string') return null;
+  const normalized = normalizeChapterToken(value);
+  if (!normalized) return null;
+
+  if (CHAPTER_IDS.includes(normalized as ChapterId)) {
+    return normalized as ChapterId;
+  }
+
+  return (
+    LEGACY_TOPIC_TO_CHAPTER[normalized] ??
+    CHAPTER_LABEL_TO_ID[value.trim().toLowerCase()] ??
+    CHAPTER_LABEL_TO_ID[normalized] ??
+    null
+  );
+}
+
+function unwrapToolParameterValue(value: unknown): unknown[] {
+  if (value === null || value === undefined) return [];
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    return [String(value)];
+  }
+  if (Array.isArray(value)) {
+    return value.flatMap((entry) => unwrapToolParameterValue(entry));
+  }
+  if (typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    const nested = [
+      record.value,
+      record.topicId,
+      record.topic_id,
+      record.chapterId,
+      record.chapter_id,
+      record.id,
+      record.topic,
+      record.chapter,
+      record.name,
+    ];
+    return nested.flatMap((entry) => unwrapToolParameterValue(entry));
+  }
+  return [];
+}
+
+/**
+ * Resolve chapter id from ElevenLabs `navigate_to_topic` / `highlightChapter` payloads.
+ * Accepts topicId, topic_id, chapterId, labels, legacy ids, and nested { value } shapes.
+ */
+export function parseNavigateToolParameters(
+  parameters: Record<string, unknown>
+): ChapterId | null {
+  return parseNavigateTarget(parameters)?.chapterId ?? null;
 }
 
 export function getChapter(id: ChapterId): Chapter | undefined {
@@ -265,6 +346,97 @@ export function getSubItemLabel(
   subId: SubItemId
 ): string | undefined {
   return getChapter(chapterId)?.sub_items?.find((s) => s.id === subId)?.label;
+}
+
+export function getSubItem(
+  chapterId: ChapterId,
+  subId: SubItemId
+): SubItem | undefined {
+  return getChapter(chapterId)?.sub_items?.find((s) => s.id === subId);
+}
+
+export function resolveSubItemId(value: unknown): SubItemId | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (SUB_ITEM_IDS.includes(trimmed as SubItemId)) return trimmed as SubItemId;
+  const normalized = normalizeChapterToken(trimmed);
+  if (SUB_ITEM_IDS.includes(normalized as SubItemId)) {
+    return normalized as SubItemId;
+  }
+  return null;
+}
+
+export type NavigateTarget = {
+  chapterId: ChapterId;
+  subItemId?: SubItemId;
+};
+
+function collectNavigateCandidates(
+  record: Record<string, unknown>
+): string[] {
+  const keys = [
+    'topicId',
+    'topic_id',
+    'chapterId',
+    'chapter_id',
+    'subItemId',
+    'sub_item_id',
+    'subItem',
+    'sub_item',
+    'sectionId',
+    'section_id',
+    'id',
+    'topic',
+    'chapter',
+    'name',
+    'value',
+  ] as const;
+
+  const candidates: string[] = [];
+  for (const key of keys) {
+    for (const candidate of unwrapToolParameterValue(record[key])) {
+      candidates.push(String(candidate));
+    }
+  }
+  for (const value of Object.values(record)) {
+    for (const candidate of unwrapToolParameterValue(value)) {
+      candidates.push(String(candidate));
+    }
+  }
+  return candidates;
+}
+
+/** Resolve chapter + optional What I've built sub-section from tool payloads. */
+export function parseNavigateTarget(
+  parameters: Record<string, unknown>
+): NavigateTarget | null {
+  let record = parameters;
+
+  if (typeof record === 'string') {
+    try {
+      record = JSON.parse(record) as Record<string, unknown>;
+    } catch {
+      const subId = resolveSubItemId(record);
+      if (subId) return { chapterId: 'what-ive-built', subItemId: subId };
+      const chapterId = resolveChapterToken(record);
+      return chapterId ? { chapterId } : null;
+    }
+  }
+
+  const candidates = collectNavigateCandidates(record);
+
+  for (const candidate of candidates) {
+    const subId = resolveSubItemId(candidate);
+    if (subId) return { chapterId: 'what-ive-built', subItemId: subId };
+  }
+
+  for (const candidate of candidates) {
+    const chapterId = resolveChapterToken(candidate);
+    if (chapterId) return { chapterId };
+  }
+
+  return null;
 }
 
 /** @deprecated Use ChapterId */

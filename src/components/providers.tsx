@@ -1,13 +1,9 @@
 'use client';
 
+import '@/lib/patch-elevenlabs-error-event';
+import '@/lib/suppress-livekit-console-noise';
 import { ConversationProvider } from '@elevenlabs/react';
-import { LivekitLogInit } from '@/components/LivekitLogInit';
 
 export function Providers({ children }: { children: React.ReactNode }) {
-  return (
-    <ConversationProvider>
-      <LivekitLogInit />
-      {children}
-    </ConversationProvider>
-  );
+  return <ConversationProvider>{children}</ConversationProvider>;
 }

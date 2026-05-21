@@ -1,16 +1,29 @@
 'use client';
 
-import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import { Loader2, PhoneOff } from 'lucide-react';
 
-type VoiceOrbProps = {
+type VoiceOrbBaseProps = {
   status: 'disconnected' | 'connecting' | 'connected' | 'error';
   isSpeaking: boolean;
-  showPortrait?: boolean;
   onStart: () => void;
   onEnd: () => void;
   errorMessage?: string;
+};
+
+type VoiceOrbControlsProps = VoiceOrbBaseProps & {
+  className?: string;
+  hideStatusLine?: boolean;
+  /** Hide start button (e.g. when start lives in HeroIntro). */
+  hideStartButton?: boolean;
+};
+
+type VoiceOrbProps = VoiceOrbBaseProps & {
+  /** Return button only — parent owns layout and controls. */
+  embedded?: boolean;
+  showControls?: boolean;
+  className?: string;
+  style?: React.CSSProperties;
 };
 
 function orbAriaLabel(
@@ -20,132 +33,179 @@ function orbAriaLabel(
 ): string {
   if (isConnecting) return 'Connecting';
   if (status === 'connected') {
-    return isSpeaking ? 'Ward is speaking' : 'Listening';
+    return isSpeaking ? 'Speaking' : 'Listening';
   }
   if (status === 'error') return 'Connection error — click to retry';
   return 'Click to start call';
 }
 
-export function VoiceOrb({
+function statusLine(
+  status: VoiceOrbProps['status'],
+  isSpeaking: boolean,
+  isConnecting: boolean,
+  errorMessage?: string
+): string {
+  if (errorMessage && (status === 'error' || status === 'disconnected')) {
+    return errorMessage;
+  }
+  if (isConnecting) return 'Connecting';
+  if (status === 'connected') {
+    return isSpeaking ? 'Speaking' : 'Listening';
+  }
+  return 'Click to start';
+}
+
+export function voiceStatusLine(
+  status: VoiceOrbBaseProps['status'],
+  isSpeaking: boolean,
+  isConnecting: boolean,
+  errorMessage?: string
+): string {
+  return statusLine(status, isSpeaking, isConnecting, errorMessage);
+}
+
+export function VoiceOrbControls({
   status,
   isSpeaking,
-  showPortrait = false,
   onStart,
   onEnd,
   errorMessage,
+  className,
+  hideStatusLine = false,
+  hideStartButton = false,
+}: VoiceOrbControlsProps) {
+  const isConnected = status === 'connected';
+  const isConnecting = status === 'connecting';
+  const isIdle = status === 'disconnected' || status === 'error';
+  const canStart = isIdle && !isConnecting && !hideStartButton;
+  const line = statusLine(status, isSpeaking, isConnecting, errorMessage);
+
+  if (!canStart && !isConnected && hideStatusLine) {
+    return null;
+  }
+
+  return (
+    <div className={cn('flex flex-col items-center gap-2', className)}>
+      {canStart ? (
+        <button
+          type="button"
+          onClick={onStart}
+          className="focus-ring rounded-md bg-[var(--accent-orange)] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[var(--accent-orange-hover)]"
+        >
+          {line}
+        </button>
+      ) : (
+        !hideStatusLine && (
+          <p className="max-w-xs text-center text-sm text-text-muted">{line}</p>
+        )
+      )}
+      {isConnected && (
+        <button
+          type="button"
+          onClick={onEnd}
+          aria-label="End call"
+          className="focus-ring inline-flex items-center gap-2 rounded-md bg-[var(--accent-orange)] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[var(--accent-orange-hover)]"
+        >
+          <PhoneOff className="size-4" strokeWidth={1.5} />
+          End call
+        </button>
+      )}
+    </div>
+  );
+}
+
+export function VoiceOrb({
+  status,
+  isSpeaking,
+  onStart,
+  onEnd,
+  errorMessage,
+  embedded = false,
+  showControls,
+  className,
+  style,
 }: VoiceOrbProps) {
   const isConnected = status === 'connected';
   const isConnecting = status === 'connecting';
   const isListening = isConnected && !isSpeaking;
   const isIdle = status === 'disconnected' || status === 'error';
   const canStart = isIdle && !isConnecting;
+  const controlsVisible = showControls ?? !embedded;
 
-  const statusLine =
-    errorMessage && (status === 'error' || status === 'disconnected')
-      ? errorMessage
-      : isConnecting
-        ? 'Connecting…'
-        : isConnected
-          ? isSpeaking
-            ? 'Ward is speaking'
-            : 'Listening…'
-          : 'Click to start';
+  const orbButton = (
+    <button
+      type="button"
+      disabled={isConnecting}
+      onClick={canStart ? onStart : undefined}
+      aria-label={orbAriaLabel(status, isSpeaking, isConnecting)}
+      className={cn(
+        'focus-ring relative aspect-square w-full',
+        canStart && 'cursor-pointer',
+        isConnected && 'cursor-default',
+        isConnecting && 'cursor-wait',
+        className
+      )}
+      style={style}
+    >
+      {isIdle && canStart && (
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-0 rounded-full border border-orb-muted/20"
+        />
+      )}
+
+      {isListening && (
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-0 animate-orb-breathe rounded-full border border-orb-muted/20"
+        />
+      )}
+
+      {(isListening || isSpeaking || isConnecting) && (
+        <span
+          aria-hidden
+          className={cn(
+            'pointer-events-none absolute inset-0 rounded-full border',
+            isConnecting && 'border-orb-muted/25 animate-orb-thinking',
+            isListening && 'border-orb-active/30',
+            isSpeaking && 'border-orb-active/30'
+          )}
+        />
+      )}
+
+      {isSpeaking && (
+        <>
+          <span className="pointer-events-none absolute inset-0 animate-orb-ripple rounded-full border border-orb-muted/15" />
+          <span className="pointer-events-none absolute inset-0 animate-orb-ripple-delay-1 rounded-full border border-orb-muted/15" />
+        </>
+      )}
+
+      {isConnecting && (
+        <span className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-full">
+          <Loader2
+            className="size-6 animate-spin text-text-primary"
+            strokeWidth={1.5}
+          />
+        </span>
+      )}
+    </button>
+  );
+
+  if (embedded && !controlsVisible) {
+    return orbButton;
+  }
 
   return (
     <div className="flex flex-col items-center gap-5">
-      <button
-        type="button"
-        disabled={isConnecting}
-        onClick={canStart ? onStart : undefined}
-        aria-label={orbAriaLabel(status, isSpeaking, isConnecting)}
-        className={cn(
-          'focus-ring relative size-[152px] shrink-0 md:size-[200px]',
-          canStart && 'cursor-pointer',
-          isConnected && 'cursor-default',
-          isConnecting && 'cursor-wait'
-        )}
-      >
-        <Image
-          src="/voice-collage.png"
-          alt=""
-          width={1024}
-          height={1024}
-          priority
-          draggable={false}
-          className={cn(
-            'pointer-events-none size-full select-none object-contain transition-all duration-300',
-            showPortrait && 'opacity-0',
-            isListening && !showPortrait && 'animate-orb-breathe',
-            isSpeaking && 'scale-[1.02]'
-          )}
+      <div className="size-[152px] shrink-0 md:size-[200px]">{orbButton}</div>
+      {controlsVisible && (
+        <VoiceOrbControls
+          status={status}
+          isSpeaking={isSpeaking}
+          onStart={onStart}
+          onEnd={onEnd}
+          errorMessage={errorMessage}
         />
-
-        {showPortrait && (
-          <Image
-            src="/ward-portrait.png"
-            alt=""
-            width={400}
-            height={400}
-            className="pointer-events-none absolute inset-0 size-full select-none rounded-full object-cover opacity-90 mix-blend-multiply contrast-125 grayscale"
-            onError={(e) => {
-              const img = e.currentTarget;
-              if (img.src.includes('hero-collage')) return;
-              img.src = '/hero-collage.png';
-            }}
-          />
-        )}
-
-        {(isListening || isSpeaking || isConnecting) && (
-          <span
-            aria-hidden
-            className={cn(
-              'pointer-events-none absolute inset-[-6px] rounded-sm border-[1.5px] md:inset-[-8px]',
-              isConnecting && 'border-orb-muted animate-orb-thinking',
-              isListening && 'border-orb-active',
-              isSpeaking && 'border-orb-active'
-            )}
-          />
-        )}
-
-        {isSpeaking && (
-          <>
-            <span className="pointer-events-none absolute inset-[-6px] animate-orb-ripple rounded-sm border border-orb-muted md:inset-[-8px]" />
-            <span className="pointer-events-none absolute inset-[-6px] animate-orb-ripple-delay-1 rounded-sm border border-orb-muted md:inset-[-8px]" />
-          </>
-        )}
-
-        {isConnecting && (
-          <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-bg-base/40">
-            <Loader2
-              className="size-6 animate-spin text-text-primary"
-              strokeWidth={1.5}
-            />
-          </span>
-        )}
-      </button>
-
-      {canStart ? (
-        <button
-          type="button"
-          onClick={onStart}
-          className="focus-ring text-sm text-text-muted underline-offset-4 transition-colors hover:text-text-primary hover:underline"
-        >
-          {statusLine}
-        </button>
-      ) : (
-        <p className="max-w-xs text-center text-sm text-text-muted">{statusLine}</p>
-      )}
-
-      {isConnected && (
-        <button
-          type="button"
-          onClick={onEnd}
-          aria-label="End call"
-          className="focus-ring inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm text-text-muted transition-colors hover:bg-bg-subtle hover:text-text-primary"
-        >
-          <PhoneOff className="size-4" strokeWidth={1.5} />
-          End call
-        </button>
       )}
     </div>
   );

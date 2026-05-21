@@ -12,6 +12,9 @@ type TopicNavProps = {
   onSelectChapter: (id: ChapterId) => void;
   onSelectSubItem: (id: SubItemId) => void;
   className?: string;
+  id?: string;
+  /** Tighter spacing for mobile sheet nav. */
+  compact?: boolean;
 };
 
 export function TopicNav({
@@ -22,16 +25,25 @@ export function TopicNav({
   onSelectChapter,
   onSelectSubItem,
   className,
+  id,
+  compact = false,
 }: TopicNavProps) {
   return (
-    <nav aria-label="Talk to Ward" className={className}>
-      <div className="mb-6">
-        <p className="text-xs font-medium uppercase tracking-[0.1em] text-text-muted">
-          Talk to Ward
+    <nav id={id} aria-label="Menu" className={className}>
+      <div className={cn(compact ? 'mb-3' : 'mb-6')}>
+        <p
+          className={cn(
+            'font-medium uppercase tracking-[0.1em] text-text-muted',
+            compact ? 'text-[10px]' : 'text-xs'
+          )}
+        >
+          Menu
         </p>
-        <p className="mt-1.5 text-[13px] text-text-muted">
-          Click any chapter, or just ask.
-        </p>
+        {!compact && (
+          <p className="mt-1.5 text-[13px] text-text-muted">
+            Click any chapter, or just ask.
+          </p>
+        )}
       </div>
 
       <ol className="flex flex-col">
@@ -48,7 +60,13 @@ export function TopicNav({
                 onClick={() => onSelectChapter(chapter.id)}
                 className={cn(
                   'focus-ring relative w-full text-left transition-all duration-200 ease-out',
-                  isChapterActive ? 'py-4' : 'py-2.5',
+                  compact
+                    ? isChapterActive
+                      ? 'py-2'
+                      : 'py-1.5'
+                    : isChapterActive
+                      ? 'py-4'
+                      : 'py-2.5',
                   isVisited && !isChapterActive && 'opacity-50'
                 )}
               >
@@ -61,7 +79,8 @@ export function TopicNav({
                 />
                 <span
                   className={cn(
-                    'block pl-3 text-sm leading-snug',
+                    'block leading-snug',
+                    compact ? 'pl-2 text-[13px]' : 'pl-3 text-sm',
                     isChapterActive
                       ? 'font-normal text-sage'
                       : 'font-medium text-text-primary'
@@ -72,7 +91,7 @@ export function TopicNav({
               </button>
 
               {showSubItems && (
-                <ul className="pb-2 pl-5">
+                <ul className={cn(compact ? 'pb-1 pl-4' : 'pb-2 pl-5')}>
                   {chapter.sub_items!.map((sub) => {
                     const isSubActive = activeSubItem === sub.id;
                     return (
@@ -81,7 +100,8 @@ export function TopicNav({
                           type="button"
                           onClick={() => onSelectSubItem(sub.id)}
                           className={cn(
-                            'focus-ring w-full py-1.5 text-left text-[12px] leading-snug transition-colors',
+                            'focus-ring w-full text-left leading-snug transition-colors',
+                            compact ? 'py-1 text-[11px]' : 'py-1.5 text-[12px]',
                             isSubActive
                               ? 'text-sage'
                               : 'text-[#666666] hover:text-text-primary'

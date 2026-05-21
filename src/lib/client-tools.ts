@@ -33,7 +33,7 @@ export const makeClientTools = (state: ClientToolsState) => ({
 
   connect_to_ward: () => {
     state.connectToWard();
-    return 'WhatsApp panel opened';
+    return 'WhatsApp overlay opened';
   },
 
   open_side_panel: () => {
