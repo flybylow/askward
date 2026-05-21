@@ -19,6 +19,8 @@
   --color-orb-idle: var(--orb-idle);
   --color-orb-active: var(--orb-active);
   --color-orb-muted: var(--orb-muted);
+  --color-accent-orange: var(--accent-orange);
+  --color-accent-orange-hover: var(--accent-orange-hover);
   --font-sans: var(--font-sans), "Helvetica Neue", Helvetica, Arial, sans-serif;
   --font-serif: var(--font-serif), Georgia, serif;
   --font-mono: var(--font-mono), ui-monospace, monospace;
@@ -66,6 +68,8 @@
   --orb-idle: #666666;
   --orb-active: #0a0a0a;
   --orb-muted: #999999;
+  --accent-orange: #ff5520;
+  --accent-orange-hover: #e64d1c;
   --danger: #8c4646;
   --background: var(--bg-base);
   --foreground: var(--text-primary);

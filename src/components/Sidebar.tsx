@@ -1,9 +1,8 @@
 'use client';
 
 import { Menu } from 'lucide-react';
-import type { Chapter } from '@/lib/chapters';
-import type { ChapterId } from '@/lib/client-tools';
-import { ChapterNav } from '@/components/ChapterNav';
+import type { ChapterId, SubItemId } from '@/lib/topics';
+import { TopicNav } from '@/components/TopicNav';
 import {
   Sheet,
   SheetContent,
@@ -12,12 +11,31 @@ import {
 } from '@/components/ui/sheet';
 
 type SidebarProps = {
-  chapters: Chapter[];
-  active: ChapterId;
-  onSelect: (id: ChapterId) => void;
+  activeChapter: ChapterId | null;
+  activeSubItem: SubItemId | null;
+  visited: Set<ChapterId>;
+  onSelectChapter: (id: ChapterId) => void;
+  onSelectSubItem: (id: SubItemId) => void;
 };
 
-export function Sidebar({ chapters, active, onSelect }: SidebarProps) {
+export function Sidebar({
+  activeChapter,
+  activeSubItem,
+  visited,
+  onSelectChapter,
+  onSelectSubItem,
+}: SidebarProps) {
+  const nav = (
+    <TopicNav
+      activeChapter={activeChapter}
+      activeSubItem={activeSubItem}
+      visited={visited}
+      onSelectChapter={onSelectChapter}
+      onSelectSubItem={onSelectSubItem}
+      className="max-h-full overflow-y-auto"
+    />
+  );
+
   return (
     <>
       <div className="absolute left-8 top-8 z-10 lg:hidden">
@@ -31,22 +49,14 @@ export function Sidebar({ chapters, active, onSelect }: SidebarProps) {
             className="w-full max-w-[280px] border-border-divider bg-bg-base p-8"
           >
             <SheetTitle className="sr-only">Talk to Ward</SheetTitle>
-            <ChapterNav
-              chapters={chapters}
-              active={active}
-              onSelect={onSelect}
-              className="max-h-full overflow-y-auto"
-            />
+            {nav}
           </SheetContent>
         </Sheet>
       </div>
       <aside className="hidden w-[280px] shrink-0 px-8 py-6 lg:block">
-        <ChapterNav
-          chapters={chapters}
-          active={active}
-          onSelect={onSelect}
-          className="sticky top-6 max-h-[calc(100vh-3rem)] overflow-y-auto"
-        />
+        <div className="sticky top-6 max-h-[calc(100vh-3rem)] overflow-y-auto">
+          {nav}
+        </div>
       </aside>
     </>
   );

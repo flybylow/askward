@@ -1,3 +1,5 @@
+import { isChapterNavMessage } from '@/lib/chapter-nav';
+
 /** Strip model text that mimics tool XML (tools not wired in ElevenLabs). */
 export function stripToolCallMarkup(text: string): string {
   return text
@@ -8,5 +10,9 @@ export function stripToolCallMarkup(text: string): string {
 }
 
 export function shouldShowTranscriptLine(text: string): boolean {
-  return text.length > 0 && !/^I$/i.test(text);
+  return (
+    text.length > 0 &&
+    !/^I$/i.test(text) &&
+    !isChapterNavMessage(text)
+  );
 }

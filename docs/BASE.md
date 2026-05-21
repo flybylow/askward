@@ -6,9 +6,11 @@
 - File names: `kebab-case.md` or `YYYY-MM-DD-topic.md` when dated.
 - Ward-specific setup steps are tagged **WARD** in docs and README.
 
-## Stack (v1)
+## Stack
 
 Next.js App Router, TypeScript, Tailwind, shadcn/ui, `@elevenlabs/react`, Vercel, domain `ask.tabulas.eu`.
+
+v2 content lives in `src/lib/topics.ts`; handoff docs in `docs/v2-*.md` and `docs/content-topics.md`.
 
 ## ElevenLabs auth note
 

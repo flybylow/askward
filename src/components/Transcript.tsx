@@ -2,11 +2,15 @@
 
 import { useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
+import type { TopicId } from '@/lib/client-tools';
 
 export type TranscriptMessage = {
   role: 'user' | 'agent';
   text: string;
   timestamp: Date;
+  topicId?: TopicId;
+  beatIndex?: number;
+  turnId?: number;
 };
 
 type TranscriptProps = {
@@ -45,9 +49,9 @@ export function Transcript({ messages }: TranscriptProps) {
           >
             {messages.map((msg, i) => (
               <li
-                key={`${msg.timestamp.getTime()}-${i}`}
+                key={`${msg.role}-${msg.turnId ?? ''}-${msg.beatIndex ?? ''}-${msg.timestamp.getTime()}-${i}`}
                 className={cn(
-                  'max-w-[88%] rounded-sm px-4 py-3 text-chat text-text-primary',
+                  'max-w-[88%] rounded-sm px-4 py-3 text-chat text-text-primary animate-in fade-in duration-300',
                   msg.role === 'user'
                     ? 'ml-auto border border-border-divider bg-bg-base'
                     : 'mr-auto border border-border-divider bg-bg-subtle'

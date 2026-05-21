@@ -7,6 +7,7 @@ import { Loader2, PhoneOff } from 'lucide-react';
 type VoiceOrbProps = {
   status: 'disconnected' | 'connecting' | 'connected' | 'error';
   isSpeaking: boolean;
+  showPortrait?: boolean;
   onStart: () => void;
   onEnd: () => void;
   errorMessage?: string;
@@ -28,6 +29,7 @@ function orbAriaLabel(
 export function VoiceOrb({
   status,
   isSpeaking,
+  showPortrait = false,
   onStart,
   onEnd,
   errorMessage,
@@ -71,11 +73,27 @@ export function VoiceOrb({
           priority
           draggable={false}
           className={cn(
-            'pointer-events-none size-full select-none object-contain transition-transform duration-300',
-            isListening && 'animate-orb-breathe',
+            'pointer-events-none size-full select-none object-contain transition-all duration-300',
+            showPortrait && 'opacity-0',
+            isListening && !showPortrait && 'animate-orb-breathe',
             isSpeaking && 'scale-[1.02]'
           )}
         />
+
+        {showPortrait && (
+          <Image
+            src="/ward-portrait.png"
+            alt=""
+            width={400}
+            height={400}
+            className="pointer-events-none absolute inset-0 size-full select-none rounded-full object-cover opacity-90 mix-blend-multiply contrast-125 grayscale"
+            onError={(e) => {
+              const img = e.currentTarget;
+              if (img.src.includes('hero-collage')) return;
+              img.src = '/hero-collage.png';
+            }}
+          />
+        )}
 
         {(isListening || isSpeaking || isConnecting) && (
           <span
