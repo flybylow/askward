@@ -4,8 +4,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useConversation } from '@elevenlabs/react';
 import {
   getChapter,
-  getSubItem,
   chapterHasSidePanel,
+  findSubItemMessageIndex,
+  inferChapterBeatIndex,
+  subItemIdForChapterBeat,
 } from '@/lib/topics';
 import type { ChapterId, SubItemId } from '@/lib/topics';
 import type { AudioEventAlignment } from '@/lib/beat-sync';
@@ -18,7 +20,7 @@ import {
   perBeatFallbackBoundaries,
   splitBeats,
 } from '@/lib/beat-sync';
-import { buildChapterNavMessage, isChapterNavMessage } from '@/lib/chapter-nav';
+import { buildChapterNavMessage, buildSubItemNavMessage, isChapterNavMessage } from '@/lib/chapter-nav';
 import { resolveNavigateToTopic } from '@/lib/navigate-to-topic';
 import {
   buildConnectFirstMessageOverride,
@@ -68,6 +70,27 @@ type ConnectIntent = {
   subItem: SubItemId | null;
   deeperCutId: string | null;
 };
+
+function agentBeatFields(
+  chapterId: ChapterId | null,
+  beatText: string,
+  beatIndexInTurn: number,
+  totalBeatsInTurn: number
+) {
+  const chapterBeatIndex = chapterId
+    ? inferChapterBeatIndex(
+        chapterId,
+        beatText,
+        beatIndexInTurn,
+        totalBeatsInTurn
+      )
+    : undefined;
+  const subItemId =
+    chapterId && chapterBeatIndex != null
+      ? subItemIdForChapterBeat(chapterId, chapterBeatIndex)
+      : undefined;
+  return { chapterBeatIndex, subItemId };
+}
 
 export function ConversationShell() {
   const [activeChapter, setActiveChapter] = useState<ChapterId | null>(null);
@@ -274,6 +297,33 @@ export function ConversationShell() {
     [markThinking]
   );
 
+  /** Sidebar sub-item under What I've built — scroll + contextual [nav]. */
+  const deliverSubItemNav = useCallback(
+    (subId: SubItemId) => {
+      const sendContextualUpdate =
+        conversationRef.current?.sendContextualUpdate ??
+        sendContextualUpdateRef.current;
+      if (typeof sendContextualUpdate !== 'function') {
+        debugNav('chapter.sub_item_nav.no_sender', { subId });
+        return false;
+      }
+      sessionIntroConsumedRef.current = true;
+      markThinking();
+      const navText = buildSubItemNavMessage(
+        'what-ive-built',
+        subId,
+        openingAlreadyPlayedForNav()
+      );
+      debugNav('chapter.sub_item_nav', {
+        subId,
+        preview: navText.slice(0, 160),
+      });
+      sendContextualUpdate(navText);
+      return true;
+    },
+    [markThinking, openingAlreadyPlayedForNav]
+  );
+
   const markVisited = useCallback((id: ChapterId) => {
     setVisited((prev) => {
       if (prev.has(id)) return prev;
@@ -294,8 +344,10 @@ export function ConversationShell() {
       });
 
       setActiveChapter(id);
-      setActiveSubItem(null);
-      pendingSubItemRef.current = null;
+      if (source === 'ui' || id !== activeChapterRef.current) {
+        setActiveSubItem(null);
+        pendingSubItemRef.current = null;
+      }
       setSidePanelDismissed(false);
       const chapter = getChapter(id);
       if (SIDE_PANEL_ENABLED && chapter && chapterHasSidePanel(chapter)) {
@@ -342,13 +394,18 @@ export function ConversationShell() {
 
       if (source === 'ui') {
         if (status === 'connected') {
-          if (activeChapterRef.current !== chapterId) {
-            sendChapterNavRef.current(chapterId, sendUserMessageRef.current);
-          }
+          deliverSubItemNav(subId);
         } else if (status !== 'connecting') {
-          rememberConnectIntent(chapterId, subId);
+          const { deeperCutId } = resolveNavigateToTopic({
+            chapterId,
+            subItemId: subId,
+          });
+          rememberConnectIntent(chapterId, subId, deeperCutId);
           markThinking();
-          debugNav('chapter.select_sub_item.pending_connect', { subId });
+          debugNav('chapter.select_sub_item.pending_connect', {
+            subId,
+            deeperCutId,
+          });
           if (status === 'disconnected' || status === 'error') {
             void startCallRef.current();
           }
@@ -356,13 +413,6 @@ export function ConversationShell() {
       }
     },
     []
-  );
-
-  const handleSubItemClick = useCallback(
-    (subId: SubItemId) => {
-      selectSubItem(subId, 'ui');
-    },
-    [selectSubItem]
   );
 
   /** Welcome cards / CTA — same as `navigate_to_topic` + optional deeper cut. */
@@ -403,6 +453,17 @@ export function ConversationShell() {
     [deliverConnectNav, markThinking, markVisited, rememberConnectIntent]
   );
 
+  const handleSubItemClick = useCallback(
+    (subId: SubItemId) => {
+      if (!hasActivated) {
+        navigateToTopicFromUi('what-ive-built', subId);
+        return;
+      }
+      selectSubItem(subId, 'ui');
+    },
+    [hasActivated, navigateToTopicFromUi, selectSubItem]
+  );
+
   const conversationStatusRef = useRef<
     | 'disconnected'
     | 'connecting'
@@ -418,7 +479,8 @@ export function ConversationShell() {
       beatIndex: number,
       beatText: string,
       chapterId: ChapterId | null,
-      isFirstBeat: boolean
+      isFirstBeat: boolean,
+      totalBeatsInTurn: number
     ) => {
       if (turnId !== currentAgentTurnIdRef.current) return;
       if (!isFirstBeat) playUiSound('beatTick');
@@ -441,6 +503,7 @@ export function ConversationShell() {
             timestamp: new Date(),
             topicId: chapterId ?? undefined,
             beatIndex,
+            ...agentBeatFields(chapterId, beatText, beatIndex, totalBeatsInTurn),
             turnId,
           },
         ];
@@ -476,7 +539,8 @@ export function ConversationShell() {
               beatIndex,
               beatText,
               chapterId,
-              beatIndex === 0
+              beatIndex === 0,
+              beats.length
             );
           },
         },
@@ -508,19 +572,22 @@ export function ConversationShell() {
 
       if (beats.length === 0) return;
 
-      setMessages((prev) => prev.filter((m) => m.role === 'user'));
-
       if (beats.length === 1) {
         setMessages((prev) => {
-          const users = prev.filter((m) => m.role === 'user');
+          const kept = prev.filter(
+            (m) =>
+              m.role === 'user' ||
+              (m.role === 'agent' && m.turnId !== turnId)
+          );
           return [
-            ...users,
+            ...kept,
             {
               role: 'agent',
               text,
               timestamp: new Date(),
               topicId: chapterId ?? undefined,
               beatIndex: 0,
+              ...agentBeatFields(chapterId, text, 0, 1),
               turnId,
             },
           ];
@@ -528,17 +595,22 @@ export function ConversationShell() {
         return;
       }
 
-      /* Beat 0 + clear prior agent lines in one update — avoids empty transcript flash. */
+      /* Beat 0 — keep prior turns so sub-item scroll targets stay in the transcript. */
       setMessages((prev) => {
-        const users = prev.filter((m) => m.role === 'user');
+        const kept = prev.filter(
+          (m) =>
+            m.role === 'user' ||
+            (m.role === 'agent' && m.turnId !== turnId)
+        );
         return [
-          ...users,
+          ...kept,
           {
             role: 'agent' as const,
             text: beats[0] ?? '',
             timestamp: new Date(),
             topicId: chapterId ?? undefined,
             beatIndex: 0,
+            ...agentBeatFields(chapterId, beats[0] ?? '', 0, beats.length),
             turnId,
           },
         ];
@@ -785,16 +857,21 @@ export function ConversationShell() {
       const chapterId = activeChapterRef.current;
       if (chapterId) markVisited(chapterId);
       setMessages((prev) => {
-        const users = prev.filter((m) => m.role === 'user');
+        const kept = prev.filter(
+          (m) =>
+            m.role === 'user' ||
+            (m.role === 'agent' && m.turnId !== turnId)
+        );
         const agentBeats = beats.map((beatText, beatIndex) => ({
           role: 'agent' as const,
           text: beatText,
           timestamp: new Date(),
           topicId: chapterId ?? undefined,
           beatIndex,
+          ...agentBeatFields(chapterId, beatText, beatIndex, beats.length),
           turnId,
         }));
-        return [...users, ...agentBeats];
+        return [...kept, ...agentBeats];
       });
     },
     onUnhandledClientToolCall: (call) => {
@@ -1059,9 +1136,9 @@ export function ConversationShell() {
       !sidePanelDismissed) ||
       forceSidePanel);
 
-  const scrollToBeatIndex = useMemo(() => {
+  const scrollToSubItem = useMemo(() => {
     if (activeChapter !== 'what-ive-built' || !activeSubItem) return null;
-    return getSubItem('what-ive-built', activeSubItem)?.beatStart ?? null;
+    return activeSubItem;
   }, [activeChapter, activeSubItem]);
 
   const displayError = sessionError ?? conversation.message;
@@ -1165,7 +1242,7 @@ export function ConversationShell() {
                       <Transcript
                         messages={messages}
                         variant="main"
-                        scrollToBeatIndex={scrollToBeatIndex}
+                        scrollToSubItem={scrollToSubItem}
                       />
                     )}
                   </div>

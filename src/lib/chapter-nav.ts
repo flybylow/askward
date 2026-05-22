@@ -35,8 +35,7 @@ export function buildChapterNavMessage(
 }
 
 /**
- * @deprecated Sub-items scroll the transcript only; the agent speaks the full chapter.
- * Kept for reference if we re-enable subsection nav later.
+ * Hidden `[nav]` when the listener picks a voice-app sub-item under What I've built.
  */
 export function buildSubItemNavMessage(
   chapterId: ChapterId,

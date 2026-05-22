@@ -282,6 +282,128 @@ export function getSubItem(
   return getChapter(chapterId)?.sub_items?.find((s) => s.id === subId);
 }
 
+/** Sub-item for a chapter beat index (inverse of beatStart). */
+export function subItemIdForChapterBeat(
+  chapterId: ChapterId,
+  chapterBeatIndex: number
+): SubItemId | undefined {
+  return getChapter(chapterId)?.sub_items?.find(
+    (s) => s.beatStart === chapterBeatIndex
+  )?.id;
+}
+
+/** Map spoken beat text to a chapter beat index (for sub-item transcript scroll). */
+function chapterBeatMatchScore(messageText: string, chapterBeatText: string): number {
+  const a = messageText.trim();
+  const b = chapterBeatText.trim();
+  if (!a || !b) return 0;
+  if (a === b) return 1;
+
+  const shorter = a.length <= b.length ? a : b;
+  const longer = a.length <= b.length ? b : a;
+  if (longer.includes(shorter) && shorter.length >= 24) {
+    return shorter.length / longer.length;
+  }
+
+  let prefix = 0;
+  const limit = Math.min(a.length, b.length);
+  while (prefix < limit && a[prefix] === b[prefix]) prefix += 1;
+  if (prefix >= 28) return prefix / Math.max(a.length, b.length);
+
+  return 0;
+}
+
+export function chapterBeatIndexForText(
+  chapterId: ChapterId,
+  beatText: string
+): number | undefined {
+  const beats = getChapter(chapterId)?.beats ?? [];
+  const t = beatText.trim();
+  if (!t) return undefined;
+
+  let bestIndex: number | undefined;
+  let bestScore = 0;
+  for (let i = 0; i < beats.length; i++) {
+    const score = chapterBeatMatchScore(t, beats[i]);
+    if (score > bestScore) {
+      bestScore = score;
+      bestIndex = i;
+    }
+  }
+  return bestScore >= 0.42 ? bestIndex : undefined;
+}
+
+/** Infer chapter beat when a full chapter is spoken as one aligned turn. */
+export function inferChapterBeatIndex(
+  chapterId: ChapterId,
+  beatText: string,
+  beatIndexInTurn: number,
+  totalBeatsInTurn: number
+): number | undefined {
+  const fromText = chapterBeatIndexForText(chapterId, beatText);
+  if (fromText !== undefined) return fromText;
+
+  const chapterBeats = getChapter(chapterId)?.beats ?? [];
+  if (totalBeatsInTurn === chapterBeats.length) {
+    return beatIndexInTurn;
+  }
+  return undefined;
+}
+
+export type ChapterBeatMessage = {
+  role: 'user' | 'agent';
+  text: string;
+  topicId?: ChapterId;
+  chapterBeatIndex?: number;
+  subItemId?: SubItemId;
+};
+
+/** Find transcript row for a sidebar sub-item id. */
+export function findSubItemMessageIndex(
+  messages: ChapterBeatMessage[],
+  chapterId: ChapterId,
+  subId: SubItemId
+): number {
+  const bySubItem = messages.findIndex(
+    (m) => m.role === 'agent' && m.subItemId === subId
+  );
+  if (bySubItem >= 0) return bySubItem;
+
+  const beatStart = getSubItem(chapterId, subId)?.beatStart;
+  if (beatStart == null) return -1;
+  return findChapterBeatMessageIndex(messages, chapterId, beatStart);
+}
+
+/** Find transcript row for a sidebar sub-item (chapter beat index). */
+export function findChapterBeatMessageIndex(
+  messages: ChapterBeatMessage[],
+  chapterId: ChapterId,
+  beatIndex: number
+): number {
+  const tagged = messages.findIndex(
+    (m) =>
+      m.role === 'agent' &&
+      m.chapterBeatIndex === beatIndex &&
+      (m.topicId === chapterId || m.topicId == null)
+  );
+  if (tagged >= 0) return tagged;
+
+  const target = getChapter(chapterId)?.beats[beatIndex]?.trim();
+  if (!target) return -1;
+
+  let bestIdx = -1;
+  let bestScore = 0;
+  messages.forEach((m, idx) => {
+    if (m.role !== 'agent') return;
+    const score = chapterBeatMatchScore(m.text, target);
+    if (score > bestScore) {
+      bestScore = score;
+      bestIdx = idx;
+    }
+  });
+  return bestScore >= 0.42 ? bestIdx : -1;
+}
+
 export function resolveSubItemId(value: unknown): SubItemId | null {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();

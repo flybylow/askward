@@ -1,8 +1,10 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import type { TopicId } from '@/lib/client-tools';
+import type { SubItemId } from '@/lib/topics';
+import { findSubItemMessageIndex } from '@/lib/topics';
 
 export type TranscriptMessage = {
   role: 'user' | 'agent';
@@ -10,6 +12,10 @@ export type TranscriptMessage = {
   timestamp: Date;
   topicId?: TopicId;
   beatIndex?: number;
+  /** Index into the active chapter's beats (sub-item scroll). */
+  chapterBeatIndex?: number;
+  /** what-ive-built voice-app id (MoMuse, Pawn Shop, …). */
+  subItemId?: SubItemId;
   turnId?: number;
 };
 
@@ -44,15 +50,15 @@ type TranscriptProps = {
   className?: string;
   /** Fill the main body column instead of a compact strip under the collage. */
   variant?: 'compact' | 'main';
-  /** Scroll the matching agent beat into view (What I've built sub-items). */
-  scrollToBeatIndex?: number | null;
+  /** Scroll to a What I've built sub-item (`momuse`, `pawn-shop`, …). -1 = no match yet. */
+  scrollToSubItem?: SubItemId | null;
 };
 
 export function Transcript({
   messages,
   className,
   variant = 'compact',
-  scrollToBeatIndex = null,
+  scrollToSubItem = null,
 }: TranscriptProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const isMain = variant === 'main';
@@ -61,20 +67,43 @@ export function Transcript({
   const visibleMessages =
     hasLiveMessages ? messages : isMain ? [] : HERO_INTRO_BUBBLES;
 
+  const scrollToMessageIndex = useMemo(() => {
+    if (!scrollToSubItem || !hasLiveMessages) return null;
+    const idx = findSubItemMessageIndex(
+      messages,
+      'what-ive-built',
+      scrollToSubItem
+    );
+    return idx >= 0 ? idx : null;
+  }, [scrollToSubItem, hasLiveMessages, messages]);
+
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    if (scrollToBeatIndex != null) {
-      const beatEl = el.querySelector(
-        `[data-beat-index="${scrollToBeatIndex}"]`
+    if (scrollToSubItem) {
+      const bySubItem = el.querySelector(
+        `[data-sub-item="${scrollToSubItem}"]`
       );
-      if (beatEl) {
-        beatEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      if (bySubItem) {
+        bySubItem.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
         return;
       }
+      if (scrollToMessageIndex != null && scrollToMessageIndex >= 0) {
+        const msgEl = el.querySelector(
+          `[data-transcript-index="${scrollToMessageIndex}"]`
+        );
+        msgEl?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
+      return;
     }
+  }, [visibleMessages, scrollToSubItem, scrollToMessageIndex]);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    if (scrollToSubItem) return;
     el.scrollTop = el.scrollHeight;
-  }, [showIntroCopy, visibleMessages, scrollToBeatIndex]);
+  }, [showIntroCopy, visibleMessages, scrollToSubItem]);
 
   if (isMain) {
     if (showIntroCopy) {
@@ -103,10 +132,19 @@ export function Transcript({
           {visibleMessages.map((msg, i) => (
             <li
               key={`${msg.role}-${msg.turnId ?? ''}-${msg.beatIndex ?? ''}-${msg.timestamp.getTime()}-${i}`}
+              data-transcript-index={i}
               data-beat-index={
                 msg.role === 'agent' && msg.beatIndex != null
                   ? msg.beatIndex
                   : undefined
+              }
+              data-chapter-beat={
+                msg.role === 'agent' && msg.chapterBeatIndex != null
+                  ? msg.chapterBeatIndex
+                  : undefined
+              }
+              data-sub-item={
+                msg.role === 'agent' && msg.subItemId ? msg.subItemId : undefined
               }
               className={cn(
                 'max-w-full rounded-lg px-4 py-3 text-text-primary animate-in fade-in duration-200 ease-out',
@@ -143,10 +181,19 @@ export function Transcript({
           {visibleMessages.map((msg, i) => (
             <li
               key={`${msg.role}-${msg.turnId ?? ''}-${msg.beatIndex ?? ''}-${msg.timestamp.getTime()}-${i}`}
+              data-transcript-index={i}
               data-beat-index={
                 msg.role === 'agent' && msg.beatIndex != null
                   ? msg.beatIndex
                   : undefined
+              }
+              data-chapter-beat={
+                msg.role === 'agent' && msg.chapterBeatIndex != null
+                  ? msg.chapterBeatIndex
+                  : undefined
+              }
+              data-sub-item={
+                msg.role === 'agent' && msg.subItemId ? msg.subItemId : undefined
               }
               className={cn(
                 'max-w-full rounded-lg px-5 py-4 text-text-primary animate-in fade-in duration-200 ease-out',
