@@ -68,8 +68,8 @@ const whatIveBuiltBeats = [
 export const VOICE_APP_PROJECT_URLS: Record<SubItemId, string> = {
   momuse: 'https://momuse.vercel.app/',
   'talk-to-product': 'https://talk-to-product.vercel.app/',
-  'pawn-shop': 'https://www.youtube.com/watch?v=zgrckrKRArU',
-  'this-agent': 'https://github.com/flybylow/ask-ward',
+  'pawn-shop': 'https://www.youtube.com/watch?v=Rn5IxOwl5YU',
+  'this-agent': 'https://github.com/flybylow/askward',
 };
 
 const whatIveBuiltSubItems: SubItem[] = [
