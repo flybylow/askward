@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react';
 import { useConversationClientTool } from '@elevenlabs/react';
 import type { ChapterId, ListenerRole } from '@/lib/client-tools';
 import type { SubItemId } from '@/lib/topics';
-import { parseNavigateTarget, getSubItem } from '@/lib/topics';
+import { parseNavigateTarget } from '@/lib/topics';
 import {
   debugNav,
   type NavDebugToolEvent,
@@ -137,16 +137,11 @@ export function ClientToolsRegistrar({
     if (!applied) {
       debugNav('tool.navigate.unresolved', {
         parameters,
-        hint: 'ElevenLabs tool must send topicId (e.g. what-ive-built or voice-blockchain). Check Agent → Tools → navigate_to_topic parameter name.',
+        hint: 'ElevenLabs tool must send topicId (e.g. what-ive-built or intro). Check Agent → Tools → navigate_to_topic parameter name.',
       });
     }
 
-    if (target && target.chapterId !== 'hello') {
-      if (target.subItemId) {
-        const beatStart =
-          getSubItem(target.chapterId, target.subItemId)?.beatStart ?? 0;
-        return `OK. Do not repeat Hey I am Ward or the first-message script. Speak only subsection "${target.subItemId}" starting at beat ${beatStart}. Do not mention earlier voice apps in this chapter.`;
-      }
+    if (target && target.chapterId !== 'intro') {
       return 'OK. Do not repeat Hey I am Ward or the first-message script. Speak only this chapter knowledge-base content now.';
     }
     return target ? 'Chapter navigated' : 'Chapter id not recognized on client';

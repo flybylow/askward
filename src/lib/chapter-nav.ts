@@ -22,14 +22,17 @@ export function buildChapterNavMessage(
     return `${CHAPTER_NAV_PREFIX} chapter=${id} label="${label}" opening_played=1 action=navigate_and_speak_chapter_only forbid=hey_im_ward forbid=hey_ward forbid=pick_a_chapter forbid=first_message_script forbid=generic_opening_greeting forbid=repeat_intro`;
   }
 
-  if (id === 'hello') {
-    return `${CHAPTER_NAV_PREFIX} chapter=hello label="${label}" opening_played=0 action=navigate_then_hello_chapter`;
+  if (id === 'intro') {
+    return `${CHAPTER_NAV_PREFIX} chapter=intro label="${label}" opening_played=0 action=navigate_then_intro_chapter`;
   }
 
   return `${CHAPTER_NAV_PREFIX} chapter=${id} label="${label}" opening_played=0 action=navigate_then_chapter forbid=generic_opening_greeting`;
 }
 
-/** Hidden nav message for a What I've built sub-section (voice-blockchain, etc.). */
+/**
+ * @deprecated Sub-items scroll the transcript only; the agent speaks the full chapter.
+ * Kept for reference if we re-enable subsection nav later.
+ */
 export function buildSubItemNavMessage(
   chapterId: ChapterId,
   subId: SubItemId,

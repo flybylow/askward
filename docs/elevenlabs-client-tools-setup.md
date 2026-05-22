@@ -27,7 +27,7 @@ Attach every tool to the **Ward** agent (not only the workspace Tools library).
 ### navigate_to_topic
 
 - **Parameter name in ElevenLabs UI must be exactly `topicId`** (camelCase, required, string)
-- Allowed values: `hello`, `why-open`, `about-ward`, `what-ive-built`, `practical`
+- Allowed values: `intro`, `why-open`, `about-ward`, `what-ive-built`, `practical` (legacy `hello` maps to `intro` in the app)
 - The app also accepts `topic_id`, `chapterId`, chapter labels, and legacy ids — but an **empty** `{}` payload means the tool schema in ElevenLabs is wrong (no parameter defined or wrong key)
 - DevTools: `[ask-ward:nav] tool.navigate.unresolved` with `parameterKeys: []` → fix the tool definition in the ElevenLabs dashboard, re-save the agent, start a **new** conversation
 

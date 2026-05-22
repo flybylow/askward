@@ -14,14 +14,14 @@ Five main chapters. One of them (`what-ive-built`) has four sub-items. The other
 TALK TO WARD
 Click any chapter, or just ask.
 
-  Hello                          ← chapter (no children)
+  Intro                          ← chapter (no children, auto-plays on first activation)
   Why Open                       ← chapter (no children)
   About Ward                     ← chapter (no children)
   What I've built                ← chapter (with children)
-      Voice to blockchain        ← sub-item
-      Talk to the product        ← sub-item
-      MoMuse                     ← sub-item
-      This agent                 ← sub-item
+      MoMuse                     ← sub-item (chronologically first)
+      Talk to the product        ← sub-item (second)
+      Pawn Shop                  ← sub-item (third)
+      This agent                 ← sub-item (fourth, current)
   Practical                      ← chapter (no children)
 ```
 
@@ -35,7 +35,7 @@ These must match exactly. The ElevenLabs agent will only call the tool with thes
 
 | Sidebar label | Chapter id | Has sub-items? |
 |---|---|---|
-| Hello | `hello` | no |
+| Intro | `intro` | no |
 | Why Open | `why-open` | no |
 | About Ward | `about-ward` | no |
 | What I've built | `what-ive-built` | yes |
@@ -45,9 +45,9 @@ These must match exactly. The ElevenLabs agent will only call the tool with thes
 
 | Sidebar label | Sub-item id |
 |---|---|
-| Voice to blockchain | `voice-blockchain` |
-| Talk to the product | `talk-to-product` |
 | MoMuse | `momuse` |
+| Talk to the product | `talk-to-product` |
+| Pawn Shop | `pawn-shop` |
 | This agent | `this-agent` |
 
 Sub-items are **not** in the agent's `navigate_to_topic` enum for now. They are visual-only navigation in the sidebar for the listener to scroll/jump within the `what-ive-built` chapter. If we later want the agent to navigate to a specific sub-item, we extend the enum then.
@@ -95,7 +95,7 @@ If the current code has:
 - The 14-topic flat list → replace with this 5-chapter structure
 - Three-layer hierarchy with "Background", "AI work" as expandable sub-groups → remove all of that
 - "Quick Hello", "Why Open", "How I work", "Background", "Logistics", "AI work", "Voice apps", "Open Mic" as top-level items → these were the old shape, replaced by the 5 chapters above
-- Any references to chapter ids like `quick-hello`, `methodology`, `education`, `ai-earlier`, `ai-current`, `arcelormittal`, `voice-blockchain` (as a top-level chapter), `looking-back`, `open-mic` → these are all gone except `voice-blockchain` which is now a sub-item under `what-ive-built`
+- Any references to chapter ids like `quick-hello`, `methodology`, `education`, `ai-earlier`, `ai-current`, `arcelormittal`, `voice-blockchain`, `looking-back`, `open-mic` → these are all gone. The Pawn Shop project now uses the id `pawn-shop` as a sub-item under `what-ive-built`.
 
 ---
 
@@ -112,7 +112,7 @@ If the current code has:
 
 ## Content source
 
-Each chapter's spoken content lives in `v2-knowledge-base.md`. The id strings above (`hello`, `why-open`, etc.) match the `**id:**` field on each chapter in that file.
+Each chapter's spoken content lives in `elevenlabs-knowledge-base.md`. The id strings above (`intro`, `why-open`, etc.) match the `**id:**` field on each chapter in that file. Frontend read-mode beats and sidebar labels are defined in `src/lib/topics.ts`.
 
 The four voice app sub-items do NOT have separate spoken content. They are visual navigation aids inside the single `what-ive-built` chapter, which contains all four in chronological order as one continuous spoken arc. Clicking a sub-item scrolls or jumps within the chapter; the agent does not re-speak from a sub-item start point.
 

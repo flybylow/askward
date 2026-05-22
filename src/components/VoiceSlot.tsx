@@ -2,6 +2,7 @@
 
 import { useCallback, useRef } from 'react';
 import { cn } from '@/lib/utils';
+import type { OrbPhase } from '@/lib/orb-phase';
 import { VoiceOrb, VoiceOrbControls, voiceStatusLine } from '@/components/VoiceOrb';
 
 /**
@@ -11,19 +12,19 @@ import { VoiceOrb, VoiceOrbControls, voiceStatusLine } from '@/components/VoiceO
 
 type VoiceSlotProps = {
   status: 'disconnected' | 'connecting' | 'connected' | 'error';
-  isSpeaking: boolean;
+  phase: OrbPhase;
   onStart: () => void;
   onEnd: () => void;
   errorMessage?: string;
   className?: string;
-  /** Overlay on hero collage vs inline in main column. */
-  variant?: 'overlay' | 'inline';
+  /** Overlay on hero collage, inline stack, or compact horizontal row (mobile). */
+  variant?: 'overlay' | 'inline' | 'horizontal';
 };
 
 /** Voice UI anchored to the sage circle on the hero collage. */
 export function VoiceSlot({
   status,
-  isSpeaking,
+  phase,
   onStart,
   onEnd,
   errorMessage,
@@ -31,15 +32,10 @@ export function VoiceSlot({
   variant = 'overlay',
 }: VoiceSlotProps) {
   const slotRef = useRef<HTMLDivElement>(null);
-  const isConnecting = status === 'connecting';
   const isIdle = status === 'disconnected' || status === 'error';
-  const showCenterStatus = variant === 'overlay' && !isIdle;
-  const statusLabel = voiceStatusLine(
-    status,
-    isSpeaking,
-    isConnecting,
-    errorMessage
-  );
+  const showCenterStatus =
+    variant === 'overlay' && !isIdle && phase !== 'user-speaking';
+  const statusLabel = voiceStatusLine(status, phase, errorMessage);
 
   const handlePointerMove = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
     const el = slotRef.current;
@@ -80,7 +76,7 @@ export function VoiceSlot({
           <div className="flex size-full items-center justify-center">
             <div
               className={cn(
-                'collage-centerpiece-parallax relative aspect-square shrink-0 transition-transform duration-[400ms] ease-out',
+                'collage-centerpiece-parallax relative aspect-square shrink-0 overflow-visible transition-transform duration-[400ms] ease-out',
                 isIdle &&
                   'translate-x-[var(--parallax-x)] translate-y-[var(--parallax-y)]'
               )}
@@ -89,7 +85,7 @@ export function VoiceSlot({
               <VoiceOrb
                 embedded
                 status={status}
-                isSpeaking={isSpeaking}
+                phase={phase}
                 onStart={onStart}
                 onEnd={onEnd}
                 errorMessage={errorMessage}
@@ -109,6 +105,24 @@ export function VoiceSlot({
             </div>
           </div>
         </div>
+      ) : variant === 'horizontal' ? (
+        <div
+          className="pointer-events-auto flex w-full min-w-0 items-center gap-3 rounded-lg bg-bg-subtle/60 px-3 py-2.5"
+          aria-live="polite"
+        >
+          <div className="relative size-14 shrink-0">
+            <VoiceOrb
+              embedded
+              status={status}
+              phase={phase}
+              onStart={onStart}
+              onEnd={onEnd}
+              errorMessage={errorMessage}
+              showControls={false}
+            />
+          </div>
+          <p className="min-w-0 text-sm text-text-muted">{statusLabel}</p>
+        </div>
       ) : (
         <div className="flex w-full flex-col items-center gap-3">
           <div className="flex w-full flex-col items-center gap-4 rounded-xl bg-bg-subtle/60 px-4 py-5 shadow-sm backdrop-blur-sm">
@@ -116,7 +130,7 @@ export function VoiceSlot({
               <VoiceOrb
                 embedded
                 status={status}
-                isSpeaking={isSpeaking}
+                phase={phase}
                 onStart={onStart}
                 onEnd={onEnd}
                 errorMessage={errorMessage}
@@ -135,7 +149,7 @@ export function VoiceSlot({
             </div>
             <VoiceOrbControls
               status={status}
-              isSpeaking={isSpeaking}
+              phase={phase}
               onStart={onStart}
               onEnd={onEnd}
               errorMessage={errorMessage}

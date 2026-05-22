@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Instrument_Serif, Inter } from 'next/font/google';
 import { Providers } from '@/components/providers';
 import './globals.css';
@@ -40,15 +40,21 @@ export const metadata: Metadata = {
   },
 };
 
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html
       lang="en"
-      className={`${inter.variable} ${instrumentSerif.variable} h-full`}
+      className={`${inter.variable} ${instrumentSerif.variable} h-full h-dvh`}
     >
-      <body className="min-h-full font-sans">
+      <body className="min-h-full min-h-dvh font-sans">
         <Providers>{children}</Providers>
       </body>
     </html>

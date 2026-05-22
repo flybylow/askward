@@ -1,9 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useConversation } from '@elevenlabs/react';
 import {
   getChapter,
+  getSubItem,
   chapterHasSidePanel,
 } from '@/lib/topics';
 import type { ChapterId, SubItemId } from '@/lib/topics';
@@ -17,17 +18,16 @@ import {
   perBeatFallbackBoundaries,
   splitBeats,
 } from '@/lib/beat-sync';
-import {
-  buildChapterNavMessage,
-  buildSubItemNavMessage,
-  isChapterNavMessage,
-} from '@/lib/chapter-nav';
+import { buildChapterNavMessage, isChapterNavMessage } from '@/lib/chapter-nav';
 import {
   shouldShowTranscriptLine,
   stripToolCallMarkup,
   isGenericOpeningGreeting,
 } from '@/lib/transcript';
 import { playUiSound } from '@/lib/ui-sounds';
+import { resolveOrbPhase } from '@/lib/orb-phase';
+import { useUserSpeaking } from '@/lib/use-user-speaking';
+import { cn } from '@/lib/utils';
 import {
   ClientToolsRegistrar,
   REGISTERED_TOOLS,
@@ -55,26 +55,15 @@ function launchChapter(
   sendUserMessage(buildChapterNavMessage(id, openingAlreadyPlayed));
 }
 
-function launchSubItem(
-  chapterId: ChapterId,
-  subId: SubItemId,
-  sendUserMessage: (text: string) => void,
-  openingAlreadyPlayed: boolean
-) {
-  debugNav('chapter.launch_sub_item', {
-    chapterId,
-    subId,
-    openingAlreadyPlayed,
-  });
-  sendUserMessage(
-    buildSubItemNavMessage(chapterId, subId, openingAlreadyPlayed)
-  );
-}
-
 const ROLE_LABELS: Record<ListenerRole, string> = {
   founder: 'Founder',
   hiring_manager: 'Hiring Manager',
   recruiter: 'Recruiter',
+};
+
+type ConnectIntent = {
+  chapter: ChapterId;
+  subItem: SubItemId | null;
 };
 
 export function ConversationShell() {
@@ -92,30 +81,51 @@ export function ConversationShell() {
   /** True from start click until call ends — keeps nav available before status flips. */
   const [navSessionActive, setNavSessionActive] = useState(false);
   const [whatsAppOpen, setWhatsAppOpen] = useState(false);
+  const [isThinking, setIsThinking] = useState(false);
   const [lastToolDebug, setLastToolDebug] = useState<NavDebugToolEvent | null>(
     null
   );
+  const thinkingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const vadHandlerRef = useRef<(props: { vadScore: number }) => void>(() => {});
 
   const pendingChapterRef = useRef<ChapterId | null>(null);
   const pendingSubItemRef = useRef<SubItemId | null>(null);
+  /** Saved on sidebar click while disconnected — survives until session ends. */
+  const connectIntentRef = useRef<ConnectIntent | null>(null);
+  /** Snapshot taken right before startSession — recalled in onConnect. */
+  const launchAfterConnectRef = useRef<ConnectIntent | null>(null);
+  /** Queued in onConnect; launched after React binds the live sendUserMessage. */
+  const pendingLaunchNavRef = useRef<ConnectIntent | null>(null);
   const startingRef = useRef(false);
   const greetingPlayedRef = useRef(false);
   /** After first nav or first agent speech — no more "Hey I'm Ward" on later clicks. */
   const sessionIntroConsumedRef = useRef(false);
   /** Sidebar connect: ElevenLabs first message suppressed for this session. */
   const skipAgentFirstMessageRef = useRef(false);
+  /** User clicked End — blocks late onConnect / launch nav / agent turns until next startCall. */
+  const endRequestedRef = useRef(false);
+  /** True from endCall until onDisconnect — blocks overlapping startCall. */
+  const endingSessionRef = useRef(false);
   const sendUserMessageRef = useRef<(text: string) => void>(() => {});
   const sendContextualUpdateRef = useRef<(text: string) => void>(() => {});
   const beatSchedulerRef = useRef(new BeatScheduler());
   const pendingAgentTextRef = useRef('');
   const activeChapterRef = useRef<ChapterId | null>(null);
+  const activeSubItemRef = useRef<SubItemId | null>(null);
   const currentAgentTurnIdRef = useRef(0);
   const agentTurnStartedAtRef = useRef(0);
   const alignmentScheduleKeyRef = useRef<string | null>(null);
   const alignmentUsedRef = useRef(false);
   const beatFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const conversationRef = useRef<{
+    sendUserMessage: (text: string) => void;
+    sendContextualUpdate: (text: string) => void;
+    status: string;
+    endSession: () => void | Promise<void>;
+  } | null>(null);
 
-  if (activeChapter) activeChapterRef.current = activeChapter;
+  activeChapterRef.current = activeChapter;
+  activeSubItemRef.current = activeSubItem;
 
   const openingAlreadyPlayedForNav = useCallback((): boolean => {
     return sessionIntroConsumedRef.current || greetingPlayedRef.current;
@@ -125,35 +135,122 @@ export function ConversationShell() {
     sessionIntroConsumedRef.current = true;
   }, []);
 
+  const clearThinking = useCallback(() => {
+    if (thinkingTimeoutRef.current) {
+      clearTimeout(thinkingTimeoutRef.current);
+      thinkingTimeoutRef.current = null;
+    }
+    setIsThinking(false);
+  }, []);
+
+  const markThinking = useCallback(() => {
+    if (endRequestedRef.current) return;
+    setIsThinking(true);
+    if (thinkingTimeoutRef.current) {
+      clearTimeout(thinkingTimeoutRef.current);
+    }
+    thinkingTimeoutRef.current = setTimeout(() => {
+      setIsThinking(false);
+      thinkingTimeoutRef.current = null;
+    }, 15_000);
+  }, []);
+
   const sendChapterNav = useCallback(
     (id: ChapterId, sendUserMessage: (text: string) => void) => {
+      markThinking();
       launchChapter(id, sendUserMessage, openingAlreadyPlayedForNav());
       markSessionIntroConsumed();
     },
-    [markSessionIntroConsumed, openingAlreadyPlayedForNav]
-  );
-
-  const sendSubItemNav = useCallback(
-    (
-      chapterId: ChapterId,
-      subId: SubItemId,
-      sendUserMessage: (text: string) => void
-    ) => {
-      launchSubItem(
-        chapterId,
-        subId,
-        sendUserMessage,
-        openingAlreadyPlayedForNav()
-      );
-      markSessionIntroConsumed();
-    },
-    [markSessionIntroConsumed, openingAlreadyPlayedForNav]
+    [markSessionIntroConsumed, markThinking, openingAlreadyPlayedForNav]
   );
 
   const sendChapterNavRef = useRef(sendChapterNav);
-  const sendSubItemNavRef = useRef(sendSubItemNav);
   sendChapterNavRef.current = sendChapterNav;
-  sendSubItemNavRef.current = sendSubItemNav;
+
+  const clearConnectIntent = useCallback(() => {
+    connectIntentRef.current = null;
+    pendingChapterRef.current = null;
+    pendingSubItemRef.current = null;
+  }, []);
+
+  const rememberConnectIntent = useCallback(
+    (chapter: ChapterId, subItem: SubItemId | null) => {
+      const intent: ConnectIntent = { chapter, subItem };
+      connectIntentRef.current = intent;
+      pendingChapterRef.current = chapter;
+      pendingSubItemRef.current = subItem;
+      debugNav('chapter.connect_intent.saved', intent);
+    },
+    []
+  );
+
+  /** Rebuild intent from refs when retrying Click to start after a sidebar pick. */
+  const recallConnectIntent = useCallback((): ConnectIntent | null => {
+    if (connectIntentRef.current) {
+      return connectIntentRef.current;
+    }
+    if (!activeChapterRef.current) {
+      return null;
+    }
+    const intent: ConnectIntent = {
+      chapter: activeChapterRef.current,
+      subItem: activeSubItemRef.current,
+    };
+    connectIntentRef.current = intent;
+    pendingChapterRef.current = intent.chapter;
+    pendingSubItemRef.current = intent.subItem;
+    debugNav('chapter.connect_intent.recalled', intent);
+    return intent;
+  }, []);
+
+  const queueSidebarNav = useCallback(
+    (chapterId: ChapterId, subItemId: SubItemId | null) => {
+      const sendUserMessage =
+        conversationRef.current?.sendUserMessage ??
+        sendUserMessageRef.current;
+      if (typeof sendUserMessage !== 'function') {
+        debugNav('conversation.launch_nav.no_sender', {
+          chapterId,
+          subItemId,
+        });
+        return false;
+      }
+      if (skipAgentFirstMessageRef.current) {
+        sessionIntroConsumedRef.current = true;
+      }
+      sendChapterNavRef.current(chapterId, sendUserMessage);
+      return true;
+    },
+    []
+  );
+
+  /** Sidebar-first connect — contextual update avoids agent end_call from [nav] user_message. */
+  const deliverConnectNav = useCallback(
+    (chapterId: ChapterId, subItemId: SubItemId | null) => {
+      const sendContextualUpdate =
+        conversationRef.current?.sendContextualUpdate ??
+        sendContextualUpdateRef.current;
+      if (typeof sendContextualUpdate !== 'function') {
+        debugNav('conversation.launch_contextual.no_sender', {
+          chapterId,
+          subItemId,
+        });
+        return false;
+      }
+      sessionIntroConsumedRef.current = true;
+      markThinking();
+      const navText = buildChapterNavMessage(chapterId, true);
+      debugNav('chapter.launch_contextual', {
+        chapterId,
+        subItemId,
+        note: 'sub-items are transcript scroll only; agent speaks full chapter',
+        preview: navText.slice(0, 120),
+      });
+      sendContextualUpdate(navText);
+      return true;
+    },
+    [markThinking]
+  );
 
   const markVisited = useCallback((id: ChapterId) => {
     setVisited((prev) => {
@@ -189,9 +286,10 @@ export function ConversationShell() {
         if (connected) {
           sendChapterNavRef.current(id, sendUserMessageRef.current);
         } else {
-          pendingChapterRef.current = id;
+          rememberConnectIntent(id, null);
+          markThinking();
           debugNav('chapter.select.pending_connect', { id });
-          if (status === 'disconnected') {
+          if (status === 'disconnected' || status === 'error') {
             void startCallRef.current();
           }
         }
@@ -222,12 +320,14 @@ export function ConversationShell() {
 
       if (source === 'ui') {
         if (status === 'connected') {
-          sendSubItemNavRef.current(chapterId, subId, sendUserMessageRef.current);
-        } else {
-          pendingChapterRef.current = chapterId;
-          pendingSubItemRef.current = subId;
+          if (activeChapterRef.current !== chapterId) {
+            sendChapterNavRef.current(chapterId, sendUserMessageRef.current);
+          }
+        } else if (status !== 'connecting') {
+          rememberConnectIntent(chapterId, subId);
+          markThinking();
           debugNav('chapter.select_sub_item.pending_connect', { subId });
-          if (status === 'disconnected') {
+          if (status === 'disconnected' || status === 'error') {
             void startCallRef.current();
           }
         }
@@ -328,6 +428,8 @@ export function ConversationShell() {
 
   const startAgentTurn = useCallback(
     (rawText: string) => {
+      if (endRequestedRef.current) return;
+      clearThinking();
       const text = stripToolCallMarkup(rawText);
       if (!shouldShowTranscriptLine(text)) return;
 
@@ -381,6 +483,7 @@ export function ConversationShell() {
       markVisited,
       revealAgentBeat,
       scheduleRemainingBeats,
+      clearThinking,
     ]
   );
 
@@ -423,44 +526,53 @@ export function ConversationShell() {
   }, [activeChapter, activeSubItem]);
 
   const conversation = useConversation({
+    onVadScore: (props) => vadHandlerRef.current(props),
     onConnect: () => {
       startingRef.current = false;
+      if (endRequestedRef.current) {
+        debugNav('conversation.connect.ignored_after_end');
+        launchAfterConnectRef.current = null;
+        pendingLaunchNavRef.current = null;
+        return;
+      }
+      const launch = launchAfterConnectRef.current;
+      launchAfterConnectRef.current = null;
       debugNav('conversation.connect', {
         registeredTools: REGISTERED_TOOLS,
-        pendingChapter: pendingChapterRef.current,
-        pendingSubItem: pendingSubItemRef.current,
+        chapterId: launch?.chapter,
+        subItemId: launch?.subItem,
+        skipOpening: skipAgentFirstMessageRef.current,
+        fromLaunchSnapshot: Boolean(launch),
       });
-      const chapterId = pendingChapterRef.current;
-      const subItemId = pendingSubItemRef.current;
-      pendingChapterRef.current = null;
-      pendingSubItemRef.current = null;
-      if (chapterId) {
-        window.setTimeout(() => {
-          if (conversationStatusRef.current !== 'connected') return;
-          if (subItemId) {
-            sendSubItemNavRef.current(
-              chapterId,
-              subItemId,
-              sendUserMessageRef.current
-            );
-          } else {
-            sendChapterNavRef.current(chapterId, sendUserMessageRef.current);
-          }
-        }, 100);
+      clearConnectIntent();
+
+      if (launch?.chapter) {
+        pendingLaunchNavRef.current = launch;
+        markThinking();
       }
     },
-    onDisconnect: () => {
+    onDisconnect: (details) => {
       startingRef.current = false;
+      endingSessionRef.current = false;
+      clearThinking();
       greetingPlayedRef.current = false;
       sessionIntroConsumedRef.current = false;
       skipAgentFirstMessageRef.current = false;
       pendingAgentTextRef.current = '';
+      pendingLaunchNavRef.current = null;
+      if (launchAfterConnectRef.current) {
+        debugNav('conversation.disconnect.intent_preserved', {
+          launch: launchAfterConnectRef.current,
+        });
+      } else {
+        clearConnectIntent();
+      }
       clearBeatFallbackTimer();
       beatSchedulerRef.current.cancel();
       setMessages([]);
       setSessionError(undefined);
       setNavSessionActive(false);
-      debugNav('conversation.disconnect');
+      debugNav('conversation.disconnect', details ?? {});
     },
     onStatusChange: ({ status }) => {
       conversationStatusRef.current = status;
@@ -475,6 +587,9 @@ export function ConversationShell() {
       });
     },
     onAgentToolResponse: (response) => {
+      if (response.tool_name === 'end_call') {
+        debugNav('conversation.agent_end_call', response);
+      }
       debugNav('tool.agent_response', response);
       setLastToolDebug((prev) =>
         prev?.name === response.tool_name
@@ -511,6 +626,8 @@ export function ConversationShell() {
       }
 
       if (speaker === 'agent') {
+        if (endRequestedRef.current) return;
+
         const skipOpening =
           skipAgentFirstMessageRef.current ||
           (greetingPlayedRef.current && isGenericOpeningGreeting(text));
@@ -535,6 +652,7 @@ export function ConversationShell() {
       }
     },
     onAudioAlignment: (alignment) => {
+      if (endRequestedRef.current) return;
       applyAlignmentSchedule(alignment);
     },
     onInterruption: () => {
@@ -545,6 +663,7 @@ export function ConversationShell() {
       currentAgentTurnIdRef.current++;
     },
     onAgentResponseCorrection: ({ corrected_agent_response }) => {
+      if (endRequestedRef.current) return;
       clearBeatFallbackTimer();
       beatSchedulerRef.current.cancel();
       const corrected = stripToolCallMarkup(
@@ -598,15 +717,45 @@ export function ConversationShell() {
   conversationStatusRef.current = conversation.status;
   sendUserMessageRef.current = conversation.sendUserMessage;
   sendContextualUpdateRef.current = conversation.sendContextualUpdate;
+  conversationRef.current = conversation;
+
+  const { isUserSpeaking, onVadScore } = useUserSpeaking({
+    enabled: conversation.status === 'connected',
+    suppress: conversation.isSpeaking,
+  });
+  vadHandlerRef.current = onVadScore;
+
+  const orbPhase = useMemo(
+    () =>
+      resolveOrbPhase({
+        status: conversation.status,
+        agentSpeaking: conversation.isSpeaking,
+        userSpeaking: isUserSpeaking,
+        thinking: isThinking,
+      }),
+    [conversation.status, conversation.isSpeaking, isUserSpeaking, isThinking]
+  );
+
+  useEffect(() => {
+    if (conversation.status !== 'connected') return;
+    if (endRequestedRef.current) return;
+    const launch = pendingLaunchNavRef.current;
+    if (!launch?.chapter) return;
+
+    pendingLaunchNavRef.current = null;
+    debugNav('conversation.connect.launch_nav', launch);
+    const launched = deliverConnectNav(launch.chapter, null);
+    if (!launched) {
+      pendingLaunchNavRef.current = launch;
+      debugNav('conversation.connect.launch_nav_deferred', launch);
+    }
+  }, [conversation.status, deliverConnectNav]);
 
   useEffect(() => {
     if (navSessionActive) {
       setNavOpen(true);
     }
   }, [navSessionActive]);
-
-  const conversationRef = useRef(conversation);
-  conversationRef.current = conversation;
 
   useEffect(() => {
     return () => {
@@ -615,7 +764,7 @@ export function ConversationShell() {
       }
       beatSchedulerRef.current.cancel();
       const c = conversationRef.current;
-      if (c.status === 'connected' || c.status === 'connecting') {
+      if (c && (c.status === 'connected' || c.status === 'connecting')) {
         void c.endSession();
       }
     };
@@ -624,12 +773,14 @@ export function ConversationShell() {
   const startCall = useCallback(async () => {
     if (
       startingRef.current ||
+      endingSessionRef.current ||
       conversation.status === 'connected' ||
       conversation.status === 'connecting'
     ) {
       return;
     }
 
+    endRequestedRef.current = false;
     startingRef.current = true;
     setSessionError(undefined);
     setNavSessionActive(true);
@@ -642,7 +793,6 @@ export function ConversationShell() {
     } catch {
       startingRef.current = false;
       setNavSessionActive(false);
-      setNavOpen(false);
       setSessionError('Microphone access is required for voice mode.');
       setReadMode(true);
       return;
@@ -665,12 +815,19 @@ export function ConversationShell() {
         throw new Error(err);
       }
 
-      const pendingChapter = pendingChapterRef.current;
-      const pendingSubItem = pendingSubItemRef.current;
+      const intent = recallConnectIntent();
+      const pendingChapter = intent?.chapter ?? null;
+      const pendingSubItem = intent?.subItem ?? null;
       const skipOpening = Boolean(pendingChapter);
 
       if (skipOpening) {
         skipAgentFirstMessageRef.current = true;
+        launchAfterConnectRef.current = {
+          chapter: pendingChapter as ChapterId,
+          subItem: pendingSubItem,
+        };
+      } else {
+        launchAfterConnectRef.current = null;
       }
 
       const dynamicVariables: Record<string, string | boolean> = {};
@@ -678,33 +835,35 @@ export function ConversationShell() {
         dynamicVariables.initial_chapter = pendingChapter;
         dynamicVariables.chapter_first_connect = true;
       }
-      if (pendingSubItem) {
-        dynamicVariables.initial_sub_item = pendingSubItem;
-      }
+      debugNav('conversation.startSession', {
+        skipOpening,
+        dynamicVariables,
+        launchAfterConnect: launchAfterConnectRef.current,
+      });
 
       conversation.startSession({
         conversationToken: body.conversationToken,
         connectionType: 'webrtc',
-        ...(skipOpening
-          ? { overrides: { agent: { firstMessage: '' } } }
-          : {}),
-        ...(Object.keys(dynamicVariables).length > 0 ? { dynamicVariables } : {}),
+        ...(skipOpening ? { dynamicVariables } : {}),
       });
     } catch (err) {
       startingRef.current = false;
-      pendingChapterRef.current = null;
+      launchAfterConnectRef.current = null;
       setNavSessionActive(false);
-      setNavOpen(false);
       setSessionError(err instanceof Error ? err.message : String(err));
     }
-  }, [conversation]);
+  }, [conversation, recallConnectIntent]);
 
   startCallRef.current = startCall;
 
   const endCall = useCallback(() => {
+    endRequestedRef.current = true;
+    endingSessionRef.current = true;
+    clearThinking();
     startingRef.current = false;
-    pendingChapterRef.current = null;
-    pendingSubItemRef.current = null;
+    launchAfterConnectRef.current = null;
+    pendingLaunchNavRef.current = null;
+    clearConnectIntent();
     pendingAgentTextRef.current = '';
     greetingPlayedRef.current = false;
     sessionIntroConsumedRef.current = false;
@@ -719,14 +878,13 @@ export function ConversationShell() {
     setNavSessionActive(false);
     setNavOpen(false);
     conversation.endSession();
-  }, [clearBeatFallbackTimer, conversation]);
+  }, [clearBeatFallbackTimer, clearConnectIntent, clearThinking, conversation]);
 
   const handleStartFromOrb = useCallback(() => {
-    pendingChapterRef.current = null;
-    pendingSubItemRef.current = null;
-    skipAgentFirstMessageRef.current = false;
+    const intent = recallConnectIntent();
+    skipAgentFirstMessageRef.current = Boolean(intent?.chapter);
     void startCall();
-  }, [startCall]);
+  }, [recallConnectIntent, startCall]);
 
   const connectToWard = useCallback(() => {
     if (SIDE_PANEL_ENABLED) {
@@ -747,12 +905,18 @@ export function ConversationShell() {
       !sidePanelDismissed) ||
       forceSidePanel);
 
+  const scrollToBeatIndex = useMemo(() => {
+    if (activeChapter !== 'what-ive-built' || !activeSubItem) return null;
+    return getSubItem('what-ive-built', activeSubItem)?.beatStart ?? null;
+  }, [activeChapter, activeSubItem]);
+
   const displayError = sessionError ?? conversation.message;
   const roleLabel = listenerRole ? ROLE_LABELS[listenerRole] : null;
   const voiceActive = conversation.status !== 'disconnected';
+  const hasLiveMessages = messages.length > 0;
 
   return (
-    <div className="bg-bg-base text-text-primary">
+    <div className="min-h-0 bg-transparent text-text-primary">
       <ClientToolsRegistrar
         selectChapter={selectChapter}
         selectSubItem={selectSubItem}
@@ -777,6 +941,7 @@ export function ConversationShell() {
       />
       <WhatsAppOverlay
         open={whatsAppOpen}
+        messages={messages}
         onClose={() => {
           playUiSound('panelClose');
           setWhatsAppOpen(false);
@@ -785,7 +950,7 @@ export function ConversationShell() {
       <section
         id="voice-conversation"
         aria-label="Voice conversation"
-        className="relative flex h-screen min-h-0 overflow-hidden"
+        className="relative flex h-dvh min-h-0 overflow-hidden"
       >
         <Sidebar
           open={navOpen}
@@ -796,10 +961,7 @@ export function ConversationShell() {
           onSelectChapter={(id) => selectChapter(id, 'ui')}
           onSelectSubItem={handleSubItemClick}
         />
-        <main className="relative flex h-full min-h-0 flex-1 flex-col overflow-x-clip overflow-y-hidden">
-          <div className="absolute right-8 top-8 z-10 flex items-center gap-3">
-            <CVDownload visible={cvVisible} />
-          </div>
+        <main className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-transparent">
           {readMode ? (
             <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto px-6 py-16 lg:px-12">
               <ReadMode
@@ -808,44 +970,58 @@ export function ConversationShell() {
               />
             </div>
           ) : (
-            <div className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+            <div className="conversation-stage">
               <HeroColumn
                 active={voiceActive}
                 status={conversation.status}
-                isSpeaking={conversation.isSpeaking}
+                phase={orbPhase}
                 onStart={handleStartFromOrb}
                 onEnd={endCall}
                 errorMessage={displayError}
               />
-              <div className="pointer-events-none relative z-10 flex min-h-0 flex-1 flex-col justify-start px-4 pb-4 pt-3 max-lg:w-full md:pl-[8%] md:px-6 md:pb-6 md:pt-4 lg:pl-[10%] lg:pr-12 lg:pt-6">
-                <div className="main-content-column pointer-events-auto flex min-h-0 flex-1 flex-col gap-3 lg:gap-4">
-                  <HeroIntro
-                    navOpen={navOpen}
-                    onToggleNav={() => setNavOpen((open) => !open)}
-                    onTalkToMe={handleStartFromOrb}
-                    isConnecting={conversation.status === 'connecting'}
-                    status={conversation.status}
-                    isSpeaking={conversation.isSpeaking}
-                    onEnd={endCall}
-                    errorMessage={displayError}
-                    roleLabel={roleLabel}
-                  />
-                  <Transcript messages={messages} variant="main" />
+              <div className="relative z-10 flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
+                <div className="conversation-content">
+                  <div
+                    className={cn(
+                      'main-content-column flex flex-col gap-4',
+                      hasLiveMessages && 'main-content-column--live'
+                    )}
+                  >
+                    <div className="flex shrink-0 justify-end">
+                      <CVDownload visible={cvVisible} />
+                    </div>
+                    <HeroIntro
+                      navOpen={navOpen}
+                      onToggleNav={() => setNavOpen((open) => !open)}
+                      onTalkToMe={handleStartFromOrb}
+                      isConnecting={conversation.status === 'connecting'}
+                      status={conversation.status}
+                      phase={orbPhase}
+                      onEnd={endCall}
+                      errorMessage={displayError}
+                      roleLabel={roleLabel}
+                    />
+                    <Transcript
+                      messages={messages}
+                      variant="main"
+                      scrollToBeatIndex={scrollToBeatIndex}
+                    />
+                  </div>
                 </div>
+                {showSidePanel && (
+                  <SidePanel
+                    chapter={activeChapterData}
+                    dismissed={sidePanelDismissed}
+                    onDismiss={() => {
+                      setSidePanelDismissed(true);
+                      setForceSidePanel(false);
+                    }}
+                    onNavigateChapter={(id) => selectChapter(id, 'ui')}
+                    onConnectWard={connectToWard}
+                    forceOpen={forceSidePanel}
+                  />
+                )}
               </div>
-              {showSidePanel && (
-                <SidePanel
-                  chapter={activeChapterData}
-                  dismissed={sidePanelDismissed}
-                  onDismiss={() => {
-                    setSidePanelDismissed(true);
-                    setForceSidePanel(false);
-                  }}
-                  onNavigateChapter={(id) => selectChapter(id, 'ui')}
-                  onConnectWard={connectToWard}
-                  forceOpen={forceSidePanel}
-                />
-              )}
             </div>
           )}
         </main>

@@ -37,7 +37,7 @@ export function TopicNav({
             compact ? 'text-[10px]' : 'text-xs'
           )}
         >
-          Menu
+          Talk to Ward
         </p>
         {!compact && (
           <p className="mt-1.5 text-[13px] text-text-muted">
@@ -80,7 +80,7 @@ export function TopicNav({
                 <span
                   className={cn(
                     'block leading-snug',
-                    compact ? 'pl-2 text-[13px]' : 'pl-3 text-sm',
+                    compact ? 'pl-1.5 text-[12px]' : 'pl-3 text-sm',
                     isChapterActive
                       ? 'font-normal text-sage'
                       : 'font-medium text-text-primary'
@@ -91,7 +91,7 @@ export function TopicNav({
               </button>
 
               {showSubItems && (
-                <ul className={cn(compact ? 'pb-1 pl-4' : 'pb-2 pl-5')}>
+                <ul className={cn(compact ? 'pb-1 pl-3' : 'pb-2 pl-5')}>
                   {chapter.sub_items!.map((sub) => {
                     const isSubActive = activeSubItem === sub.id;
                     return (

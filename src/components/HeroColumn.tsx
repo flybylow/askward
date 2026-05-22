@@ -1,29 +1,46 @@
 'use client';
 
 import Image from 'next/image';
+import type { CSSProperties } from 'react';
 import { cn } from '@/lib/utils';
+import type { OrbPhase } from '@/lib/orb-phase';
 import { VoiceSlot } from '@/components/VoiceSlot';
 
 /** Portrait collage — 571×1024 (9:16) */
 const COLLAGE_WIDTH = 571;
 const COLLAGE_HEIGHT = 1024;
 
+/** Inline backup — beats stale CSS / @layer overrides on mobile. */
+const HERO_FRAME_STYLE: CSSProperties = {
+  position: 'fixed',
+  top: 0,
+  right: 0,
+  bottom: 0,
+  zIndex: 0,
+  overflow: 'hidden',
+  pointerEvents: 'none',
+  aspectRatio: '571 / 1024',
+  width: 'auto',
+  height: 'auto',
+  minHeight: '100dvh',
+};
+
 type HeroColumnProps = {
   className?: string;
   active?: boolean;
   status: 'disconnected' | 'connecting' | 'connected' | 'error';
-  isSpeaking: boolean;
+  phase: OrbPhase;
   onStart: () => void;
   onEnd: () => void;
   errorMessage?: string;
 };
 
-/** Hero collage + voice overlay — fixed to viewport, full height, right bleed. */
+/** Hero collage + ElevenLabs orb — one fixed viewport-sized container. */
 export function HeroColumn({
   className,
   active = false,
   status,
-  isSpeaking,
+  phase,
   onStart,
   onEnd,
   errorMessage,
@@ -32,7 +49,9 @@ export function HeroColumn({
     <aside
       data-layer="collage"
       data-active={active ? 'true' : 'false'}
-      className={cn('hero-collage-frame pointer-events-none z-0', className)}
+      aria-hidden
+      className={cn('hero-collage-frame', className)}
+      style={HERO_FRAME_STYLE}
     >
       <div className="hero-collage-art">
         <Image
@@ -43,13 +62,13 @@ export function HeroColumn({
           priority
           draggable={false}
           aria-hidden
-          sizes="(min-width: 1024px) 50vw, 140px"
+          sizes="100vw"
         />
       </div>
 
       <VoiceSlot
         status={status}
-        isSpeaking={isSpeaking}
+        phase={phase}
         onStart={onStart}
         onEnd={onEnd}
         errorMessage={errorMessage}

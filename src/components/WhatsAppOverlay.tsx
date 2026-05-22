@@ -4,10 +4,12 @@ import { useEffect } from 'react';
 import { MessageCircle, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getWhatsAppUrl } from '@/lib/whatsapp';
+import type { WhatsAppHistoryMessage } from '@/lib/whatsapp';
 
 type WhatsAppOverlayProps = {
   open: boolean;
   onClose: () => void;
+  messages?: WhatsAppHistoryMessage[];
   className?: string;
 };
 
@@ -15,9 +17,10 @@ type WhatsAppOverlayProps = {
 export function WhatsAppOverlay({
   open,
   onClose,
+  messages = [],
   className,
 }: WhatsAppOverlayProps) {
-  const url = getWhatsAppUrl();
+  const url = getWhatsAppUrl(messages);
 
   useEffect(() => {
     if (!open) return;
@@ -35,8 +38,9 @@ export function WhatsAppOverlay({
       role="dialog"
       aria-modal="true"
       aria-labelledby="whatsapp-overlay-title"
+      onClick={onClose}
       className={cn(
-        'fixed inset-0 z-[200] flex items-center justify-center bg-bg-base/95 p-6 backdrop-blur-sm',
+        'fixed inset-0 z-[200] flex items-center justify-center bg-bg-base/35 p-6 backdrop-blur-[2px]',
         className
       )}
     >
@@ -44,12 +48,15 @@ export function WhatsAppOverlay({
         type="button"
         onClick={onClose}
         aria-label="Close"
-        className="focus-ring absolute right-6 top-6 rounded-md p-2 text-text-muted transition-colors hover:bg-bg-subtle hover:text-text-primary"
+        className="focus-ring absolute right-6 top-6 rounded-md p-2 text-text-muted transition-colors hover:bg-bg-subtle/80 hover:text-text-primary"
       >
         <X className="size-5" strokeWidth={1.5} />
       </button>
 
-      <div className="flex w-full max-w-md flex-col items-center gap-6 text-center">
+      <div
+        onClick={(event) => event.stopPropagation()}
+        className="flex w-full max-w-md flex-col items-center gap-6 rounded-xl border border-border-divider/25 bg-bg-base/65 p-8 text-center shadow-lg backdrop-blur-md"
+      >
         <div className="flex size-16 items-center justify-center rounded-full bg-[#25D366]/10 text-[#25D366]">
           <MessageCircle className="size-8" strokeWidth={1.5} />
         </div>
@@ -77,10 +84,14 @@ export function WhatsAppOverlay({
             Open WhatsApp
           </a>
         ) : (
-          <p className="text-sm text-text-muted">
-            WhatsApp is not configured yet. Set{' '}
+          <p className="text-sm leading-relaxed text-text-muted">
+            WhatsApp link is missing. Add{' '}
             <code className="text-text-primary">NEXT_PUBLIC_WHATSAPP_URL</code>{' '}
-            or phone + message env vars.
+            to <code className="text-text-primary">.env.local</code> (or set{' '}
+            <code className="text-text-primary">NEXT_PUBLIC_WHATSAPP_PHONE</code>{' '}
+            + optional{' '}
+            <code className="text-text-primary">NEXT_PUBLIC_WHATSAPP_MESSAGE</code>
+            ), then restart the dev server.
           </p>
         )}
 

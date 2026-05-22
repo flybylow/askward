@@ -1,11 +1,13 @@
 'use client';
 
 import { cn } from '@/lib/utils';
-import { Loader2, PhoneOff } from 'lucide-react';
+import type { OrbPhase } from '@/lib/orb-phase';
+import { orbStatusLine } from '@/lib/orb-phase';
+import { Brain, Loader2, Mic, PhoneOff } from 'lucide-react';
 
 type VoiceOrbBaseProps = {
   status: 'disconnected' | 'connecting' | 'connected' | 'error';
-  isSpeaking: boolean;
+  phase: OrbPhase;
   onStart: () => void;
   onEnd: () => void;
   errorMessage?: string;
@@ -14,59 +16,53 @@ type VoiceOrbBaseProps = {
 type VoiceOrbControlsProps = VoiceOrbBaseProps & {
   className?: string;
   hideStatusLine?: boolean;
-  /** Hide start button (e.g. when start lives in HeroIntro). */
   hideStartButton?: boolean;
 };
 
 type VoiceOrbProps = VoiceOrbBaseProps & {
-  /** Return button only — parent owns layout and controls. */
   embedded?: boolean;
   showControls?: boolean;
   className?: string;
   style?: React.CSSProperties;
 };
 
-function orbAriaLabel(
-  status: VoiceOrbProps['status'],
-  isSpeaking: boolean,
-  isConnecting: boolean
-): string {
-  if (isConnecting) return 'Connecting';
-  if (status === 'connected') {
-    return isSpeaking ? 'Speaking' : 'Listening';
-  }
-  if (status === 'error') return 'Connection error — click to retry';
-  return 'Click to start call';
-}
+const AGENT_RIPPLES = [
+  'animate-orb-ripple',
+  'animate-orb-ripple-delay-1',
+  'animate-orb-ripple-delay-2',
+  'animate-orb-ripple-delay-3',
+  'animate-orb-ripple-delay-4',
+] as const;
 
-function statusLine(
-  status: VoiceOrbProps['status'],
-  isSpeaking: boolean,
-  isConnecting: boolean,
-  errorMessage?: string
-): string {
-  if (errorMessage && (status === 'error' || status === 'disconnected')) {
-    return errorMessage;
+function orbAriaLabel(phase: OrbPhase): string {
+  switch (phase) {
+    case 'connecting':
+      return 'Connecting';
+    case 'thinking':
+      return 'Thinking';
+    case 'agent-speaking':
+      return 'Agent speaking';
+    case 'user-speaking':
+      return 'You are speaking';
+    case 'listening':
+      return 'Listening';
+    case 'idle':
+    default:
+      return 'Start agent';
   }
-  if (isConnecting) return 'Connecting';
-  if (status === 'connected') {
-    return isSpeaking ? 'Speaking' : 'Listening';
-  }
-  return 'Click to start';
 }
 
 export function voiceStatusLine(
   status: VoiceOrbBaseProps['status'],
-  isSpeaking: boolean,
-  isConnecting: boolean,
+  phase: OrbPhase,
   errorMessage?: string
 ): string {
-  return statusLine(status, isSpeaking, isConnecting, errorMessage);
+  return orbStatusLine(phase, errorMessage, status);
 }
 
 export function VoiceOrbControls({
   status,
-  isSpeaking,
+  phase,
   onStart,
   onEnd,
   errorMessage,
@@ -78,7 +74,7 @@ export function VoiceOrbControls({
   const isConnecting = status === 'connecting';
   const isIdle = status === 'disconnected' || status === 'error';
   const canStart = isIdle && !isConnecting && !hideStartButton;
-  const line = statusLine(status, isSpeaking, isConnecting, errorMessage);
+  const line = voiceStatusLine(status, phase, errorMessage);
 
   if (!canStart && !isConnected && hideStatusLine) {
     return null;
@@ -116,7 +112,7 @@ export function VoiceOrbControls({
 
 export function VoiceOrb({
   status,
-  isSpeaking,
+  phase,
   onStart,
   onEnd,
   errorMessage,
@@ -126,24 +122,24 @@ export function VoiceOrb({
   style,
 }: VoiceOrbProps) {
   const isConnected = status === 'connected';
-  const isConnecting = status === 'connecting';
-  const isListening = isConnected && !isSpeaking;
   const isIdle = status === 'disconnected' || status === 'error';
-  const canStart = isIdle && !isConnecting;
+  const canStart = isIdle && phase !== 'connecting';
   const controlsVisible = showControls ?? !embedded;
+
+  const showCenterIcon =
+    phase === 'connecting' || phase === 'thinking' || phase === 'user-speaking';
 
   const orbButton = (
     <button
       type="button"
-      disabled={isConnecting}
+      disabled={phase === 'connecting'}
       onClick={canStart ? onStart : undefined}
-      aria-label={orbAriaLabel(status, isSpeaking, isConnecting)}
+      aria-label={orbAriaLabel(phase)}
       className={cn(
-        'focus-ring relative aspect-square w-full',
+        'focus-ring relative aspect-square w-full overflow-visible transition-colors duration-300',
         canStart && 'cursor-pointer',
         isConnected && 'cursor-default',
-        isConnecting && 'cursor-wait',
-        className
+        phase === 'connecting' && 'cursor-wait'
       )}
       style={style}
     >
@@ -154,38 +150,80 @@ export function VoiceOrb({
         />
       )}
 
-      {isListening && (
+      {phase === 'listening' && (
         <span
           aria-hidden
-          className="pointer-events-none absolute inset-0 animate-orb-breathe rounded-full border border-orb-muted/20"
+          className="pointer-events-none absolute inset-0 animate-orb-breathe rounded-full border border-orb-muted/25"
         />
       )}
 
-      {(isListening || isSpeaking || isConnecting) && (
+      {phase === 'user-speaking' && (
+        <>
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-0 animate-orb-user-speak rounded-full border-2 border-[var(--accent-orange)]/50 bg-[var(--accent-orange)]/8"
+          />
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-[-8%] animate-orb-user-ring rounded-full border border-[var(--accent-orange)]/25"
+          />
+        </>
+      )}
+
+      {phase === 'thinking' && (
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-0 animate-orb-thinking rounded-full border border-sage/40 bg-sage/10"
+        />
+      )}
+
+      {(phase === 'listening' ||
+        phase === 'agent-speaking' ||
+        phase === 'connecting') && (
         <span
           aria-hidden
           className={cn(
             'pointer-events-none absolute inset-0 rounded-full border',
-            isConnecting && 'border-orb-muted/25 animate-orb-thinking',
-            isListening && 'border-orb-active/30',
-            isSpeaking && 'border-orb-active/30'
+            phase === 'connecting' && 'border-orb-muted/25 animate-orb-thinking',
+            phase === 'listening' && 'border-orb-active/25',
+            phase === 'agent-speaking' &&
+              'border-orb-active/40 animate-orb-breathe'
           )}
         />
       )}
 
-      {isSpeaking && (
-        <>
-          <span className="pointer-events-none absolute inset-0 animate-orb-ripple rounded-full border border-orb-muted/15" />
-          <span className="pointer-events-none absolute inset-0 animate-orb-ripple-delay-1 rounded-full border border-orb-muted/15" />
-        </>
-      )}
-
-      {isConnecting && (
-        <span className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-full">
-          <Loader2
-            className="size-6 animate-spin text-text-primary"
-            strokeWidth={1.5}
+      {phase === 'agent-speaking' &&
+        AGENT_RIPPLES.map((rippleClass) => (
+          <span
+            key={rippleClass}
+            aria-hidden
+            className={cn(
+              'pointer-events-none absolute inset-[-12%] rounded-full border border-orb-active/30',
+              rippleClass
+            )}
           />
+        ))}
+
+      {showCenterIcon && (
+        <span className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-full">
+          {phase === 'connecting' && (
+            <Loader2
+              className="size-6 animate-spin text-text-primary"
+              strokeWidth={1.5}
+            />
+          )}
+          {phase === 'thinking' && (
+            <Brain
+              className="size-7 animate-orb-thinking text-sage"
+              strokeWidth={1.5}
+            />
+          )}
+          {phase === 'user-speaking' && (
+            <Mic
+              className="size-6 text-[var(--accent-orange)]"
+              strokeWidth={1.5}
+            />
+          )}
         </span>
       )}
     </button>
@@ -201,7 +239,7 @@ export function VoiceOrb({
       {controlsVisible && (
         <VoiceOrbControls
           status={status}
-          isSpeaking={isSpeaking}
+          phase={phase}
           onStart={onStart}
           onEnd={onEnd}
           errorMessage={errorMessage}

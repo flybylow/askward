@@ -36,7 +36,7 @@ export function SidePanel({
   return (
     <aside
       className={cn(
-        'flex w-full max-w-[280px] shrink-0 flex-col border-l border-border-divider bg-bg-base',
+        'flex h-full min-h-0 w-full max-w-[280px] shrink-0 flex-col border-l border-border-divider bg-bg-base',
         'animate-in slide-in-from-right-2 duration-200'
       )}
       aria-label="Chapter resources"

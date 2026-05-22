@@ -30,20 +30,29 @@ export const HERO_INTRO_BUBBLES: TranscriptMessage[] = [
   },
 ];
 
-const MAIN_FRAME_CLASS =
-  'flex min-h-0 w-full flex-1 flex-col overflow-hidden rounded-lg bg-bg-subtle/60 max-lg:max-h-[calc(100dvh-7rem)] lg:h-[calc(100dvh-10rem)]';
+const INTRO_COPY_CLASS =
+  'w-full shrink-0 rounded-lg border border-border-divider/20 bg-violet-500/12 px-6 py-5 backdrop-blur-md';
+
+const INTRO_HEADLINE_CLASS =
+  'font-serif text-[clamp(1.75rem,3.25vw,2.375rem)] leading-[1.14] tracking-[-0.02em] text-text-primary';
+
+const INTRO_SUBHEAD_CLASS =
+  'mt-3 text-[clamp(0.9375rem,1.35vw,1.0625rem)] leading-relaxed text-text-muted';
 
 type TranscriptProps = {
   messages: TranscriptMessage[];
   className?: string;
   /** Fill the main body column instead of a compact strip under the collage. */
   variant?: 'compact' | 'main';
+  /** Scroll the matching agent beat into view (What I've built sub-items). */
+  scrollToBeatIndex?: number | null;
 };
 
 export function Transcript({
   messages,
   className,
   variant = 'compact',
+  scrollToBeatIndex = null,
 }: TranscriptProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const isMain = variant === 'main';
@@ -55,47 +64,61 @@ export function Transcript({
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
+    if (scrollToBeatIndex != null) {
+      const beatEl = el.querySelector(
+        `[data-beat-index="${scrollToBeatIndex}"]`
+      );
+      if (beatEl) {
+        beatEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        return;
+      }
+    }
     el.scrollTop = el.scrollHeight;
-  }, [showIntroCopy, visibleMessages]);
+  }, [showIntroCopy, visibleMessages, scrollToBeatIndex]);
 
   if (isMain) {
+    if (showIntroCopy) {
+      return (
+        <div className={INTRO_COPY_CLASS}>
+          <p className={INTRO_HEADLINE_CLASS}>
+            {HERO_INTRO_BUBBLES[0]?.text}
+          </p>
+          <p className={INTRO_SUBHEAD_CLASS}>
+            {HERO_INTRO_BUBBLES[1]?.text}
+          </p>
+        </div>
+      );
+    }
+
     return (
-      <div className={MAIN_FRAME_CLASS}>
-        <div
-          ref={scrollRef}
-          className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain px-4 py-3"
+      <div
+        ref={scrollRef}
+        className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain"
+      >
+        <ul
+          aria-live="polite"
+          aria-relevant="additions"
+          className="flex flex-col gap-4"
         >
-            {showIntroCopy ? (
-              <>
-                <p className="font-serif text-[clamp(1.5rem,2.75vw,2.125rem)] leading-[1.12] tracking-[-0.02em] text-text-primary">
-                  {HERO_INTRO_BUBBLES[0]?.text}
-                </p>
-                <p className="text-[clamp(0.8125rem,1.1vw,0.9375rem)] leading-snug text-text-muted">
-                  {HERO_INTRO_BUBBLES[1]?.text}
-                </p>
-              </>
-            ) : (
-              <ul
-                aria-live="polite"
-                aria-relevant="additions"
-                className="flex flex-col gap-4"
-              >
-                {visibleMessages.map((msg, i) => (
-                  <li
-                    key={`${msg.role}-${msg.turnId ?? ''}-${msg.beatIndex ?? ''}-${msg.timestamp.getTime()}-${i}`}
-                    className={cn(
-                      'max-w-full rounded-lg px-4 py-3 text-text-primary animate-in fade-in duration-200 ease-out',
-                      msg.role === 'user'
-                        ? 'ml-auto bg-bg-base text-base'
-                        : 'mr-auto bg-bg-subtle'
-                    )}
-                  >
-                    {msg.text}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+          {visibleMessages.map((msg, i) => (
+            <li
+              key={`${msg.role}-${msg.turnId ?? ''}-${msg.beatIndex ?? ''}-${msg.timestamp.getTime()}-${i}`}
+              data-beat-index={
+                msg.role === 'agent' && msg.beatIndex != null
+                  ? msg.beatIndex
+                  : undefined
+              }
+              className={cn(
+                'max-w-full rounded-lg px-4 py-3 text-text-primary animate-in fade-in duration-200 ease-out',
+                msg.role === 'user'
+                  ? 'ml-auto bg-bg-subtle text-base'
+                  : 'mr-auto bg-bg-subtle'
+              )}
+            >
+              {msg.text}
+            </li>
+          ))}
+        </ul>
       </div>
     );
   }
@@ -120,6 +143,11 @@ export function Transcript({
           {visibleMessages.map((msg, i) => (
             <li
               key={`${msg.role}-${msg.turnId ?? ''}-${msg.beatIndex ?? ''}-${msg.timestamp.getTime()}-${i}`}
+              data-beat-index={
+                msg.role === 'agent' && msg.beatIndex != null
+                  ? msg.beatIndex
+                  : undefined
+              }
               className={cn(
                 'max-w-full rounded-lg px-5 py-4 text-text-primary animate-in fade-in duration-200 ease-out',
                 msg.role === 'user'
