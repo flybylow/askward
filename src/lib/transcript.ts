@@ -4,11 +4,22 @@ import { isChapterNavMessage } from '@/lib/chapter-nav';
 export function isGenericOpeningGreeting(text: string): boolean {
   const t = text.trim();
   if (!t) return false;
-  return (
-    /^hey,?\s+i.m ward\b/i.test(t) ||
-    /\bpick any chapter on the left\b/i.test(t) ||
-    /\bi built this voice agent to apply\b/i.test(t)
-  );
+  if (/\bpick any chapter\b/i.test(t)) return true;
+  if (/\bjust ask me what you want to know\b/i.test(t)) return true;
+  if (/\bi built this voice agent to apply\b/i.test(t)) return true;
+  if (
+    /^hey,?\s+i['']?m ward\b/i.test(t) &&
+    /\bpick any chapter\b/i.test(t)
+  ) {
+    return true;
+  }
+  return false;
+}
+
+/** Short dashboard opener fragment (often arrives before pick-a-chapter line). */
+export function isDashboardOpeningFragment(text: string): boolean {
+  const t = text.trim();
+  return /^hey,?\s+i['']?m ward\.?$/i.test(t) || /^hi,?\s+i['']?m ward\.?$/i.test(t);
 }
 
 /** Strip model text that mimics tool XML (tools not wired in ElevenLabs). */

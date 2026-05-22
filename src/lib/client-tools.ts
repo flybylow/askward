@@ -8,10 +8,8 @@ export type ListenerRole = 'founder' | 'hiring_manager' | 'recruiter';
 
 export type ClientToolsState = {
   selectChapter: (id: ChapterId, source: 'ui' | 'tool') => void;
-  setCvVisible: (visible: boolean) => void;
   setReadMode: (on: boolean) => void;
   setRole: (role: ListenerRole) => void;
-  openSidePanel: () => void;
   connectToWard: () => void;
 };
 
@@ -34,16 +32,6 @@ export const makeClientTools = (state: ClientToolsState) => ({
   connect_to_ward: () => {
     state.connectToWard();
     return 'WhatsApp overlay opened';
-  },
-
-  open_side_panel: () => {
-    state.openSidePanel();
-    return 'Side panel opened';
-  },
-
-  showCVDownload: () => {
-    state.setCvVisible(true);
-    return 'CV download surfaced';
   },
 
   switchToReadMode: () => {

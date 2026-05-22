@@ -28,6 +28,8 @@ const HERO_FRAME_STYLE: CSSProperties = {
 type HeroColumnProps = {
   className?: string;
   active?: boolean;
+  /** Pre-activation: collage only, no orb controls. */
+  hideOrb?: boolean;
   status: 'disconnected' | 'connecting' | 'connected' | 'error';
   phase: OrbPhase;
   onStart: () => void;
@@ -39,6 +41,7 @@ type HeroColumnProps = {
 export function HeroColumn({
   className,
   active = false,
+  hideOrb = false,
   status,
   phase,
   onStart,
@@ -66,14 +69,16 @@ export function HeroColumn({
         />
       </div>
 
-      <VoiceSlot
-        status={status}
-        phase={phase}
-        onStart={onStart}
-        onEnd={onEnd}
-        errorMessage={errorMessage}
-        className="absolute inset-0 z-20"
-      />
+      {!hideOrb && (
+        <VoiceSlot
+          status={status}
+          phase={phase}
+          onStart={onStart}
+          onEnd={onEnd}
+          errorMessage={errorMessage}
+          className="absolute inset-0 z-20"
+        />
+      )}
     </aside>
   );
 }

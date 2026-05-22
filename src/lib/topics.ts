@@ -64,6 +64,14 @@ const whatIveBuiltBeats = [
   'Which one do you want to hear more about?',
 ];
 
+/** Live demo / case-study URLs for voice-app sub-items (welcome + side panel). */
+export const VOICE_APP_PROJECT_URLS: Record<SubItemId, string> = {
+  momuse: 'https://momuse.vercel.app/',
+  'talk-to-product': 'https://talk-to-product.vercel.app/',
+  'pawn-shop': 'https://www.youtube.com/watch?v=zgrckrKRArU',
+  'this-agent': 'https://github.com/flybylow/ask-ward',
+};
+
 const whatIveBuiltSubItems: SubItem[] = [
   {
     id: 'momuse',
@@ -123,20 +131,6 @@ export const NAV_CHAPTERS: Chapter[] = [
     label: "What I've built",
     beats: whatIveBuiltBeats,
     sub_items: whatIveBuiltSubItems,
-    side_panel: {
-      links: [
-        { label: 'Case study — MoMuse', url: 'https://momuse.vercel.app/' },
-        { label: 'Live demo — Talk to the product', url: 'https://talk-to-product.vercel.app/' },
-        {
-          label: 'YouTube — Pawn Shop',
-          url: 'https://www.youtube.com/watch?v=zgrckrKRArU',
-        },
-        {
-          label: 'GitHub — This agent',
-          url: 'https://github.com/flybylow/ask-ward',
-        },
-      ],
-    },
   },
   {
     id: 'practical',
@@ -146,14 +140,6 @@ export const NAV_CHAPTERS: Chapter[] = [
       'I can work in Dutch, French, English, or some Spanish. Wherever your customers are.',
       'Available on a short timeframe. Anything I have not covered, just ask. If I do not know the answer, I will put you in touch with Ward directly.',
     ],
-    side_panel: {
-      choices: [
-        {
-          label: 'Connect to Ward on WhatsApp',
-          tool: 'connect_to_ward',
-        },
-      ],
-    },
   },
 ];
 

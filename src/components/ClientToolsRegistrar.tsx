@@ -6,6 +6,10 @@ import type { ChapterId, ListenerRole } from '@/lib/client-tools';
 import type { SubItemId } from '@/lib/topics';
 import { parseNavigateTarget } from '@/lib/topics';
 import {
+  isDeeperCutId,
+  subItemFromDeeperCutId,
+} from '@/lib/deeper-cuts';
+import {
   debugNav,
   type NavDebugToolEvent,
   type NavDebugToolPhase,
@@ -13,21 +17,18 @@ import {
 
 const REGISTERED_TOOLS = [
   'navigate_to_topic',
+  'show_deeper_cut',
   'highlightChapter',
   'set_role',
   'connect_to_ward',
-  'open_side_panel',
-  'showCVDownload',
   'switchToReadMode',
 ] as const;
 
 type ClientToolsRegistrarProps = {
   selectChapter: (id: ChapterId, source: 'ui' | 'tool') => void;
   selectSubItem: (id: SubItemId, source: 'ui' | 'tool') => void;
-  setCvVisible: (visible: boolean) => void;
   setReadMode: (on: boolean) => void;
   setRole: (role: ListenerRole) => void;
-  openSidePanel: () => void;
   connectToWard: () => void;
   onToolDebug?: (event: NavDebugToolEvent) => void;
 };
@@ -63,28 +64,22 @@ function applyNavigateTarget(
 export function ClientToolsRegistrar({
   selectChapter,
   selectSubItem,
-  setCvVisible,
   setReadMode,
   setRole,
-  openSidePanel,
   connectToWard,
   onToolDebug,
 }: ClientToolsRegistrarProps) {
   const selectChapterRef = useRef(selectChapter);
   const selectSubItemRef = useRef(selectSubItem);
-  const setCvVisibleRef = useRef(setCvVisible);
   const setReadModeRef = useRef(setReadMode);
   const setRoleRef = useRef(setRole);
-  const openSidePanelRef = useRef(openSidePanel);
   const connectToWardRef = useRef(connectToWard);
   const onToolDebugRef = useRef(onToolDebug);
 
   selectChapterRef.current = selectChapter;
   selectSubItemRef.current = selectSubItem;
-  setCvVisibleRef.current = setCvVisible;
   setReadModeRef.current = setReadMode;
   setRoleRef.current = setRole;
-  openSidePanelRef.current = openSidePanel;
   connectToWardRef.current = connectToWard;
   onToolDebugRef.current = onToolDebug;
 
@@ -148,6 +143,27 @@ export function ClientToolsRegistrar({
   });
 
   useConversationClientTool('navigate_to_topic', handleNavigate);
+
+  useConversationClientTool(
+    'show_deeper_cut',
+    wrapTool('show_deeper_cut', (parameters) => {
+      const raw =
+        parameters.deeper_cut_id ??
+        parameters.deeperCutId ??
+        parameters.deeper_cut;
+      const id = typeof raw === 'string' ? raw.trim() : '';
+      if (!isDeeperCutId(id)) {
+        debugNav('tool.show_deeper_cut.unresolved', { parameters });
+        return 'Deeper cut id not recognized on client';
+      }
+      const subItemId = subItemFromDeeperCutId(id);
+      selectChapterRef.current('what-ive-built', 'tool');
+      selectSubItemRef.current(subItemId, 'tool');
+      debugNav('tool.show_deeper_cut.applied', { deeperCutId: id, subItemId });
+      return `Deeper cut ${id} highlighted. Speak that optional deeper cut from the knowledge base now.`;
+    })
+  );
+
   useConversationClientTool(
     'highlightChapter',
     wrapTool('highlightChapter', (parameters) => {
@@ -189,22 +205,6 @@ export function ClientToolsRegistrar({
     wrapTool('connect_to_ward', () => {
       connectToWardRef.current();
       return 'WhatsApp overlay opened';
-    })
-  );
-
-  useConversationClientTool(
-    'open_side_panel',
-    wrapTool('open_side_panel', () => {
-      openSidePanelRef.current();
-      return 'Side panel opened';
-    })
-  );
-
-  useConversationClientTool(
-    'showCVDownload',
-    wrapTool('showCVDownload', () => {
-      setCvVisibleRef.current(true);
-      return 'CV download surfaced';
     })
   );
 

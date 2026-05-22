@@ -31,7 +31,7 @@ export const HERO_INTRO_BUBBLES: TranscriptMessage[] = [
 ];
 
 const INTRO_COPY_CLASS =
-  'w-full shrink-0 rounded-lg border border-border-divider/20 bg-violet-500/12 px-6 py-5 backdrop-blur-md';
+  'w-full shrink-0 rounded-lg border border-border-divider/20 bg-surface-panel px-6 py-5 backdrop-blur-md';
 
 const INTRO_HEADLINE_CLASS =
   'font-serif text-[clamp(1.75rem,3.25vw,2.375rem)] leading-[1.14] tracking-[-0.02em] text-text-primary';

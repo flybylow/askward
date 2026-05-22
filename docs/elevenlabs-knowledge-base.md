@@ -140,4 +140,6 @@ At the end of each chapter, deliver the check-in or handoff exactly as written. 
 
 For the "Which one do you want to hear more about?" question at the end of What I've built, listen for which voice app the user names and deliver that specific optional deeper cut.
 
-For anything outside these chapters and deeper cuts, call `connect_to_ward`.
+For anything outside these chapters and deeper cuts, call `connect_to_ward` (opens the WhatsApp overlay in the app — there is no Related side panel).
+
+On the **Practical** chapter, if the listener wants to reach Ward directly, call `connect_to_ward`; do not call `open_side_panel` (removed).

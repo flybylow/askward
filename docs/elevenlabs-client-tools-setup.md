@@ -10,6 +10,7 @@ If the transcript shows raw XML like `<function_calls><invoke name="navigate_to_
 | Stability | High |
 | Guardrails | Enabled |
 | System prompt | [elevenlabs-system-prompt-v2.md](./elevenlabs-system-prompt-v2.md) |
+| Dynamic variables | [elevenlabs-dynamic-variables.md](./elevenlabs-dynamic-variables.md) — **not pasted as values**; referenced in system prompt; app sends at runtime |
 | Knowledge base | [elevenlabs-topics-knowledge-base.md](./elevenlabs-topics-knowledge-base.md) + CV PDF |
 
 ## In the ElevenLabs UI (Agent → Ward → Tools)
@@ -39,11 +40,7 @@ Attach every tool to the **Ward** agent (not only the workspace Tools library).
 
 - No parameters
 
-### open_side_panel
-
-- No parameters
-
-### showCVDownload / switchToReadMode
+### switchToReadMode
 
 - No parameters
 
@@ -63,7 +60,7 @@ WARD: replace with your WhatsApp link.
 
 1. Open **Agents → Ward → Tools** and attach all client tools.
 2. **Save** the agent.
-3. Test: sidebar highlight and side panel should update when the agent calls `navigate_to_topic`.
+3. Test: sidebar highlight updates when the agent calls `navigate_to_topic`. WhatsApp: call `connect_to_ward` (full-screen overlay, not a side panel).
 4. DevTools console should not show `Unhandled client tool` warnings.
 
 ## System prompt
@@ -81,6 +78,7 @@ Re-paste from [elevenlabs-system-prompt-v2.md](./elevenlabs-system-prompt-v2.md)
 ## v2 launch checklist (WARD)
 
 - [ ] Paste v2 system prompt and first message
+- [ ] **Agent → Security → enable `First message` override** (required for sidebar/dashboard chapter connect — app replaces the dashboard opener with the chapter’s first beat)
 - [ ] Upload v2 knowledge base + CV
 - [ ] Create and attach all client tools
 - [ ] Set temperature 0.2–0.4, enable guardrails

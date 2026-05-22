@@ -11,6 +11,7 @@
 - [v2-technical-spec.md](./v2-technical-spec.md) — beat sync, side panel, navigation
 - [transcript-beat-sync.md](./transcript-beat-sync.md) — ElevenLabs alignment vs app beat bubbles
 - [sidebar-navigation.md](./sidebar-navigation.md) — authoritative 5-chapter sidebar spec
+- [welcome-page.md](./welcome-page.md) — pre-activation one-pager (headline, cards, sage CTA)
 - [hero-interface-merge.md](./hero-interface-merge.md) — merged hero + voice layout (Path C)
 - [content-topics.md](./content-topics.md) — legacy 14-topic markdown (superseded by sidebar spec)
 - [elevenlabs-system-prompt-v2.md](./elevenlabs-system-prompt-v2.md) — paste into ElevenLabs agent (v2)
@@ -21,3 +22,4 @@
 - [elevenlabs-chapters-knowledge-base.md](./elevenlabs-chapters-knowledge-base.md) — v1 knowledge base (deprecated)
 - [api-conversation-token.md](./api-conversation-token.md) — backend route vs handoff signed-url
 - [elevenlabs-client-tools-setup.md](./elevenlabs-client-tools-setup.md) — client tools and ElevenLabs UI setup
+- [elevenlabs-dynamic-variables.md](./elevenlabs-dynamic-variables.md) — where to configure dynamic vars & first-message override in ElevenLabs

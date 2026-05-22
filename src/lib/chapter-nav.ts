@@ -14,9 +14,14 @@ export function isChapterNavMessage(text: string): boolean {
  */
 export function buildChapterNavMessage(
   id: ChapterId,
-  openingAlreadyPlayed: boolean
+  openingAlreadyPlayed: boolean,
+  deeperCutId?: string | null
 ): string {
   const label = getChapter(id)?.label ?? id;
+
+  if (deeperCutId) {
+    return `${CHAPTER_NAV_PREFIX} chapter=${id} label="${label}" deeper_cut="${deeperCutId}" opening_played=1 action=deliver_deeper_cut_first skip_chapter_intro=1 forbid=hey_im_ward forbid=hey_ward forbid=pick_a_chapter forbid=first_message_script forbid=generic_opening_greeting forbid=repeat_intro forbid=restart_chapter_from_beat_zero`;
+  }
 
   if (openingAlreadyPlayed) {
     return `${CHAPTER_NAV_PREFIX} chapter=${id} label="${label}" opening_played=1 action=navigate_and_speak_chapter_only forbid=hey_im_ward forbid=hey_ward forbid=pick_a_chapter forbid=first_message_script forbid=generic_opening_greeting forbid=repeat_intro`;

@@ -8,9 +8,9 @@ import { Brain, Ear, Loader2, Menu, Mic, PhoneOff, Speech } from 'lucide-react';
 type HeroIntroProps = {
   navOpen?: boolean;
   onToggleNav?: () => void;
+  onContact?: () => void;
   onTalkToMe?: () => void;
   isConnecting?: boolean;
-  roleLabel?: string | null;
   status?: 'disconnected' | 'connecting' | 'connected' | 'error';
   phase?: OrbPhase;
   onEnd?: () => void;
@@ -19,12 +19,15 @@ type HeroIntroProps = {
 };
 
 /** Menu toggle + badge row + CTAs. */
+const navLinkClass =
+  'focus-ring shrink-0 border-0 bg-transparent px-1 py-0.5 text-[13px] font-normal text-text-muted underline-offset-2 transition-colors hover:text-text-primary hover:underline';
+
 export function HeroIntro({
   navOpen = false,
   onToggleNav,
+  onContact,
   onTalkToMe,
   isConnecting = false,
-  roleLabel = null,
   status = 'disconnected',
   phase = 'idle',
   onEnd,
@@ -34,6 +37,9 @@ export function HeroIntro({
   const isConnected = status === 'connected';
   const isConnectingState = status === 'connecting' || isConnecting;
   const ctaLabel = voiceStatusLine(status, phase, errorMessage);
+
+  const chipClass =
+    'border border-border-divider/50 bg-bg-chip shadow-sm transition-colors hover:bg-bg-subtle';
 
   const primaryCtaClass =
     'focus-ring inline-flex w-fit items-center justify-center rounded-md bg-[var(--accent-orange)] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[var(--accent-orange-hover)] disabled:cursor-wait disabled:opacity-70';
@@ -47,7 +53,7 @@ export function HeroIntro({
   return (
     <div
       className={cn(
-        'flex w-full min-w-0 flex-nowrap items-center gap-2 rounded-lg bg-emerald-500/12 px-1 py-1',
+        'flex w-full min-w-0 flex-nowrap items-center gap-2 rounded-lg px-1 py-1',
         className
       )}
     >
@@ -57,12 +63,20 @@ export function HeroIntro({
         aria-expanded={navOpen}
         aria-controls="chapter-navigation"
         aria-label={navOpen ? 'Close chapter menu' : 'Open chapter menu'}
-        className="focus-ring relative z-20 inline-flex shrink-0 items-center justify-center rounded-full bg-border-divider px-2.5 py-1.5 text-text-primary transition-colors hover:bg-bg-subtle"
+        className={cn(
+          'focus-ring relative z-20 inline-flex shrink-0 items-center justify-center rounded-full px-2.5 py-1.5 text-text-primary',
+          chipClass
+        )}
       >
         <Menu className="size-3 shrink-0 text-text-muted" strokeWidth={1.75} />
       </button>
 
-      <span className="inline-flex w-fit shrink-0 items-center gap-1.5 rounded-full bg-border-divider px-3 py-1.5 text-[13px] text-text-primary">
+      <span
+        className={cn(
+          'inline-flex w-fit shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] text-text-primary',
+          chipClass
+        )}
+      >
         {showAgentSpeaking && (
           <Speech
             className="size-3 shrink-0 text-text-muted"
@@ -118,11 +132,11 @@ export function HeroIntro({
         </span>
       </span>
 
-      {roleLabel && (
-        <span className="inline-flex w-fit shrink-0 rounded-full border border-border-divider px-3 py-1.5 text-[13px] text-text-muted">
-          Speaking with: {roleLabel}
-        </span>
-      )}
+      <button type="button" onClick={() => onContact?.()} className={navLinkClass}>
+        Contact
+      </button>
+
+      <span className="min-w-2 flex-1" aria-hidden />
 
       {!isConnected && (
         <button
